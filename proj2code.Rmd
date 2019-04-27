@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("/Users/jiahua/Documents/Berkeley/Stats/Stat154sp19/arctic_cloud_recognition/")
+setwd("/Users/suizhengyi/Desktop/C154/arctic_cloud_recognition")
 columns <- c("y", "x", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
 
 image1 <- read.table("image_data/image1.txt", header = FALSE, col.names = columns)
@@ -21,6 +21,7 @@ image3$class <- rep(3, nrow(image3))
 total_data <- rbind(image1, image2, image3)
 
 library(ggplot2)
+library(corrplot)
 library(dplyr)
 ```
     
@@ -28,17 +29,104 @@ library(dplyr)
 Section 1: Data Collection and Exploration  
 1b.  
 ```{r}
-plot1b_1 <- image1 %>% ggplot(aes(x = x, y = y)) + geom_raster(aes(fill = label))
-plot1b_2 <- image2 %>% ggplot(aes(x = x, y = y)) + geom_raster(aes(fill = label))
-plot1b_3 <- image3 %>% ggplot(aes(x = x, y = y)) + geom_raster(aes(fill = label))
-plot1b_1
-plot1b_2
-plot1b_3
+ggplot(data = image1) +
+  geom_point(aes(x = x, y = y, color = factor(label))) +
+  scale_color_manual(values=(brewer.pal(3, "Purples"))[3:1]) +
+  scale_x_continuous(breaks = seq(0, 400, 50)) +
+  scale_y_continuous(breaks = seq(65, 370, 50)) +
+  xlab("x coordinate") +
+  ylab("y coordinate") +
+  ggtitle("distribution of cloud and non-cloud (1)") +
+  theme_bw()
+ggplot(data = image2) +
+  geom_point(aes(x = x, y = y, color = factor(label))) +
+  scale_color_manual(values=(brewer.pal(3, "Purples"))[3:1]) +
+  scale_x_continuous(breaks = seq(0, 400, 50)) +
+  scale_y_continuous(breaks = seq(65, 370, 50)) +
+  xlab("x coordinate") +
+  ylab("y coordinate") +
+  ggtitle("distribution of cloud and non-cloud (2)") +
+  theme_bw()
+ggplot(data = image3) +
+  geom_point(aes(x = x, y = y, color = factor(label))) +
+  scale_color_manual(values=(brewer.pal(3, "Purples"))[3:1]) +
+  scale_x_continuous(breaks = seq(0, 400, 50)) +
+  scale_y_continuous(breaks = seq(65, 370, 50)) +
+  xlab("x coordinate") +
+  ylab("y coordinate") +
+  ggtitle("distribution of cloud and non-cloud (3)") +
+  theme_bw()
 ```
+
+1c.
+```{r}
+# corrplot, label vs all
+corrplot(cor(image1[,3:11]), type="upper",tl.col="black", tl.srt=45)
+corrplot(cor(image2[,3:11]), type="upper",tl.col="black", tl.srt=45)
+corrplot(cor(image3[,3:11]), type="upper",tl.col="black", tl.srt=45)
+
+# Boxplot, label vs NDAI/SD/CORR
+gg1_NDAI <- ggplot(data = image1) +
+  geom_boxplot(aes(x = factor(label), y = NDAI)) +
+  xlab("Label") +
+  ylab("NDAI") +
+  ggtitle("label vs NDAI") +
+  theme_bw()
+gg1_SD <- ggplot(data = image1) +
+  geom_boxplot(aes(x = factor(label), y = SD)) +
+  xlab("Label") +
+  ylab("SD") +
+  ggtitle("label vs SD") +
+  theme_bw()
+gg1_CORR <- ggplot(data = image1) +
+  geom_boxplot(aes(x = factor(label), y = CORR)) +
+  xlab("Label") +
+  ylab("CORR") +
+  ggtitle("label vs CORR") +
+  theme_bw()
+gg2_NDAI <- ggplot(data = image2) +
+  geom_boxplot(aes(x = factor(label), y = NDAI)) +
+  xlab("Label") +
+  ylab("NDAI") +
+  ggtitle("label vs NDAI") +
+  theme_bw()
+gg2_SD <- ggplot(data = image2) +
+  geom_boxplot(aes(x = factor(label), y = SD)) +
+  xlab("Label") +
+  ylab("SD") +
+  ggtitle("label vs SD") +
+  theme_bw()
+gg2_CORR <- ggplot(data = image2) +
+  geom_boxplot(aes(x = factor(label), y = CORR)) +
+  xlab("Label") +
+  ylab("CORR") +
+  ggtitle("label vs CORR") +
+  theme_bw()
+gg3_NDAI <- ggplot(data = image3) +
+  geom_boxplot(aes(x = factor(label), y = NDAI)) +
+  xlab("Label") +
+  ylab("NDAI") +
+  ggtitle("label vs NDAI") +
+  theme_bw()
+gg3_SD <- ggplot(data = image3) +
+  geom_boxplot(aes(x = factor(label), y = SD)) +
+  xlab("Label") +
+  ylab("SD") +
+  ggtitle("label vs SD") +
+  theme_bw()
+gg3_CORR <- ggplot(data = image3) +
+  geom_boxplot(aes(x = factor(label), y = CORR)) +
+  xlab("Label") +
+  ylab("CORR") +
+  ggtitle("label vs CORR") +
+  theme_bw()
+
+```
+
     
     
 Section 2: Preparation   
-2. splitting data by block to address spatial correlation.         
+2. splitting data by block to address spatial CORRelation.         
 ```{r}
 # specify the number of bin we want on x and y, number of blocks are thus xs * ys
 # 30 is a arbitrary decision
@@ -51,7 +139,7 @@ total_data2 <- total_data[total_data$label != 0, ]
 total_data2$xbins <- cut_interval(total_data2$x, xs, labels = seq(1:xs))
 total_data2$ybins <- cut_interval(total_data2$y, ys, labels = seq(1:ys))
 
-total_data2$blocks <- as.numeric(as.character(total_data2$xbins)) *
+total_data2$blocks <- as.numeric(as.character(total_data2$xbins))
   as.numeric(as.character(total_data2$ybins))
 
 # there may be some blocks without any labeled data
