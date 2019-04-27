@@ -7,7 +7,6 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("/Users/suizhengyi/Desktop/C154/arctic_cloud_recognition")
 columns <- c("y", "x", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
 
 image1 <- read.table("image_data/image1.txt", header = FALSE, col.names = columns)
@@ -19,12 +18,15 @@ image2$class <- rep(2, nrow(image2))
 image3$class <- rep(3, nrow(image3))
 
 total_data <- rbind(image1, image2, image3)
-
+```
+    
+```{r}
+library(e1071)
 library(ggplot2)
 library(corrplot)
 library(dplyr)
+library(MASS)
 ```
-    
     
 Section 1: Data Collection and Exploration  
 1b.  
@@ -126,33 +128,79 @@ gg3_CORR <- ggplot(data = image3) +
     
     
 Section 2: Preparation   
-2. splitting data by block to address spatial CORRelation.         
+2a. splitting data by block to address spatial CORRelation.         
 ```{r}
 # specify the number of bin we want on x and y, number of blocks are thus xs * ys
 # 30 is a arbitrary decision
+set.seed(154)
 
-xs <- 30
-ys <- 30
-train_size <- 0.8
+xs <- 20
+ys <- 20
+test_size <- 0.2
+val_size <- 0.2
+'%notin%' <- Negate('%in%') 
 
 total_data2 <- total_data[total_data$label != 0, ]
 total_data2$xbins <- cut_interval(total_data2$x, xs, labels = seq(1:xs))
 total_data2$ybins <- cut_interval(total_data2$y, ys, labels = seq(1:ys))
 
-total_data2$blocks <- as.numeric(as.character(total_data2$xbins))
-  as.numeric(as.character(total_data2$ybins))
+total_data2$blocks <- as.numeric(factor(paste0(total_data2$xbins, total_data2$ybins)))
 
 # there may be some blocks without any labeled data
-blcoks <- length(unique(total_data2$blocks))
-train_idx1 <- sample(seq(1:blocks), train_size * blocks)
-train_set1 <- total_data2$blocks 
+blocks <- length(unique(total_data2$blocks))
+test_idx1 <- sample(seq(1:blocks), test_size * blocks)
+test_set1 <- total_data2[total_data2$blocks %in% test_idx1, ]
+train_set1 <- total_data2[total_data2$blocks %notin% test_idx1, ]
+
+#further splitting trainset into training and validation set.
+train_len1 <- length(unique(train_set1$blocks))
+val_idx1 <- sample(seq(1:train_len1), val_size * train_len1)
+val_set1 <- train_set1[train_set1$blocks %in% val_idx1, ]
+train_set1 <- train_set1[train_set1$blocks %notin% val_idx1, ]
+
+hist(total_data2$blocks)
+ggplot()
 ```
-    
-    
+        
+2a. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously.    
+```{r}
+
+set.seed(154)
+
+total_data2$xbins <- cut_number(total_data2$x, xs, labels = seq(1:xs))
+total_data2$ybins <- cut_number(total_data2$y, ys, labels = seq(1:ys))
+
+total_data2$blocks <- as.numeric(factor(paste0(total_data2$xbins, total_data2$ybins)))
+
+# there may be some blocks without any labeled data
+blocks <- length(unique(total_data2$blocks))
+test_idx2 <- sample(seq(1:blocks), test_size * blocks)
+test_set2 <- total_data2[total_data2$blocks %in% test_idx2, ]
+train_set2 <- total_data2[total_data2$blocks %notin% test_idx2, ]
+
+#further splitting trainset into training and validation set.
+train_len2 <- length(unique(train_set2$blocks))
+val_idx2 <- sample(seq(1:train_len2), val_size * train_len2)
+val_set2 <- train_set2[train_set2$blocks %in% val_idx2, ]
+train_set2 <- train_set2[train_set2$blocks %notin% val_idx2, ]
+
+hist(total_data2$blocks)
+```
+   
 
 ```{r}
-head(total_data2)
-length(unique(total_data2$blocks))
+nrow(train_set2)
+nrow(val_set2)
+nrow(test_set2)
+nrow(total_data2)
+```
+
+
+```{r}
+nrow(train_set1)
+nrow(val_set1)
+nrow(test_set1)
+nrow(total_data2)
 ```
 
 
