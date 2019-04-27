@@ -38,16 +38,33 @@ plot1b_3
     
     
 Section 2: Preparation   
-2a. splitting data      
+2. splitting data by block to address spatial correlation.         
 ```{r}
+# specify the number of bin we want on x and y, number of blocks are thus xs * ys
+# 30 is a arbitrary decision
 
+xs <- 30
+ys <- 30
+train_size <- 0.8
 
+total_data2 <- total_data[total_data$label != 0, ]
+total_data2$xbins <- cut_interval(total_data2$x, xs, labels = seq(1:xs))
+total_data2$ybins <- cut_interval(total_data2$y, ys, labels = seq(1:ys))
+
+total_data2$blocks <- as.numeric(as.character(total_data2$xbins)) *
+  as.numeric(as.character(total_data2$ybins))
+
+# there may be some blocks without any labeled data
+blcoks <- length(unique(total_data2$blocks))
+train_idx1 <- sample(seq(1:blocks), train_size * blocks)
+train_set1 <- total_data2$blocks 
 ```
     
     
 
 ```{r}
-
+head(total_data2)
+length(unique(total_data2$blocks))
 ```
 
 
