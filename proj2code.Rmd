@@ -1,0 +1,56 @@
+---
+title: "154project2"
+author: "Jiahua"
+date: "4/26/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/jiahua/Documents/Berkeley/Stats/Stat154sp19/project2")
+columns <- c("y", "x", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
+
+image1 <- read.table("image_data/image1.txt", header = FALSE, col.names = columns)
+image2 <- read.table("image_data/image2.txt", header = FALSE, col.names = columns)
+image3 <- read.table("image_data/image3.txt", header = FALSE, col.names = columns)
+
+image1$class <- rep(1, nrow(image1))
+image2$class <- rep(2, nrow(image2))
+image3$class <- rep(3, nrow(image3))
+
+total_data <- rbind(image1, image2, image3)
+
+library(ggplot2)
+library(dplyr)
+```
+    
+    
+Section 1: Data Collection and Exploration  
+1b.  
+```{r}
+plot1b_1 <- image1 %>% ggplot(aes(x = x, y = y)) + geom_raster(aes(fill = label))
+plot1b_2 <- image2 %>% ggplot(aes(x = x, y = y)) + geom_raster(aes(fill = label))
+plot1b_3 <- image3 %>% ggplot(aes(x = x, y = y)) + geom_raster(aes(fill = label))
+plot1b_1
+plot1b_2
+plot1b_3
+```
+    
+    
+Section 2: 
+2d    
+```{r}
+
+
+```
+    
+    
+
+```{r}
+
+```
+
+
+
+
+
