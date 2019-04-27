@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("/Users/jiahua/Documents/Berkeley/Stats/Stat154sp19/project2")
+setwd("/Users/jiahua/Documents/Berkeley/Stats/Stat154sp19/arctic_cloud_recognition/")
 columns <- c("y", "x", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
 
 image1 <- read.table("image_data/image1.txt", header = FALSE, col.names = columns)
@@ -37,8 +37,8 @@ plot1b_3
 ```
     
     
-Section 2: 
-2d    
+Section 2: Preparation   
+2a. splitting data      
 ```{r}
 
 
