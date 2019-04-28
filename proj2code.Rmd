@@ -19,13 +19,15 @@ image3$class <- rep(3, nrow(image3))
 
 ```
     
-```{r}
+```{r message=FALSE}
 library(e1071)
 library(ggplot2)
 library(corrplot)
 library(dplyr)
 library(MASS)
+library(RColorBrewer)
 library(caret)
+library(stringr)
 ```
     
 Section 1: Data Collection and Exploration  
@@ -122,10 +124,6 @@ gg3_CORR <- ggplot(data = image3) +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
-gg1_NDAI; gg1_CORR; gg1_SD
-gg2_NDAI; gg2_CORR; gg2_SD
-gg3_NDAI; gg3_CORR; gg3_SD
-
 ```
 
     
@@ -215,72 +213,119 @@ nrow(test_set1)
 ```
 
 
-
-```{r}
-nrow(train_set2)
-nrow(val_set2)
-nrow(test_set2)
-nrow(total_data3)
-```
-
-```{r}
-nrow(train_set1)
-nrow(val_set1)
-nrow(test_set1)
-nrow(total_data2)
-```
-
 2b.
 ```{r}
-head(total_data2)
-total_label1 <- total_data2[which(total_data2$label == 1),]
-total_label2 <- total_data2[which(total_data2$label == -1),] # This is label -1.
+cor(total_data2[,c(3,4,6,11)])
+```
 
-# QDA
-model_qda1 <- qda(label ~ NDAI + SD + CORR, data = total_data2) # The Three featrures
-pred_qda1 <- predict(model_qda1, total_data2)$class
-(err_qda1 <- mean(pred_qda1 != total_data2$label))
+2d.
+```{r}
+loss <- function(label, label_hat){
+  ls <- mean(label != label_hat)
+  return(ls)
+}
 
-model_qda2 <- qda(label ~ NDAI + CORR + AN, data = total_data2) # NDAI, CORR and AN. ------BEST
-pred_qda2 <- predict(model_qda2, total_data2)$class
-(err_qda2 <- mean(pred_qda2 != total_data2$label))
+CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
+  folds <- createFolds(trainLabel, k = K)
+  error_df <- data.frame(error = rep(0, K))
+  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "random forest", "KNN"))){
+    stop("classifier must be one of qda, logistics, random forest, KNN.")
+  }else if(str_to_lower(classifier) == "logistic"){
+    for(i in 1:K){
+      model <- glm(((trainLabel[-folds[[i]]] + 1)/2) ~ NDAI + CORR + AN, 
+                   data = trainFeature[-folds[[i]], ],
+                   family = binomial(link = "logit"))
+      yhat <- predict(model, trainFeature[folds[[i]], ], type = "response")
+      class <- yhat > 0.5
+      # error_df[i,1] <- lossfn(as.numeric(class), (trainLabel[folds[[i]]] + 1)/2)
+      error_df[i,1] <- mean(as.numeric(class) != (trainLabel[folds[[i]]] + 1)/2)
+    }
+    return(error_df)
+  }
+}
+CVgeneric("logistic", train1[,c(4,6,11)], train1$label, loss = loss())
 
-model_qda3 <- qda(label ~ NDAI + AF + AN, data = total_data2) # NDAI, AF and AN
-pred_qda3 <- predict(model_qda3, total_data2)$class
-(err_qda3 <- mean(pred_qda3 != total_data2$label))
+```
 
-model_qda4 <- qda(label ~ NDAI + SD + AN, data = total_data2) # NDAI, SD and AN
-pred_qda4 <- predict(model_qda4, total_data2)$class
-(err_qda4 <- mean(pred_qda4 != total_data2$label))
+
+Section 3: Modeling   
+3a.
+```{r}
+# Split data 1. 
+train1 <- rbind(train_set1, val_set1)
+folds1 <- createFolds(train1$label, k = 5)
 
 # Logistic
-mode_logis1 <- glm(((label + 1)/2) ~ NDAI + SD + CORR, data = total_data2,
-                   family = binomial(link = "logit")) # The Three featrures. ------BEST
-yhat_logis1 <- predict(mode_logis1, total_data2, type = "response")
+err_logis <- data.frame(error = rep(0, 5))
+for(i in 1:5){
+  model_logis <- glm(((label + 1)/2) ~ NDAI + CORR + AN, data = train1[-folds1[[i]], ],
+                     family = binomial(link = "logit"))
+  yhat_logis <- predict(model_logis, train1[folds1[[i]], ], type = "response")
+  class_logis <- yhat_logis > 0.5
+  err_logis[i,1] <- mean(as.numeric(class_logis) != (train1[folds1[[i]], "label"] + 1)/2)
+} 
+err_logis
+
+# QDA
+err_qda <- data.frame(error = rep(0, 5))
+for(i in 1:5){
+  model_qda <- qda(label ~ NDAI + CORR + AN, data = train1[-folds1[[i]], ])
+  pred_qda <- predict(model_qda, train1[folds1[[i]], ])$class
+  # err_qda[i,1] <- mean(pred_qda != train1[folds1[[i]],"label"])
+  err_qda[i,1] <- loss(pred_qda, train1[folds1[[i]],"label"])
+}
+err_qda
+```
+
+
+
+```{r}
+# Split data 1. 
+# QDA
+model_qda1 <- qda(label ~ NDAI + SD + CORR, data = train_set1) # The Three featrures
+pred_qda1 <- predict(model_qda1, val_set1)$class
+(err_qda1 <- mean(pred_qda1 != val_set1$label))
+
+model_qda2 <- qda(label ~ NDAI + CORR + AN, data = train_set1) # NDAI, CORR and AN
+pred_qda2 <- predict(model_qda2, val_set1)$class
+(err_qda2 <- mean(pred_qda2 != val_set1$label))
+
+model_qda3 <- qda(label ~ NDAI + AF + AN, data = train_set1) # NDAI, AF and AN. ------BEST
+pred_qda3 <- predict(model_qda3, val_set1)$class
+(err_qda3 <- mean(pred_qda3 != val_set1$label))
+
+model_qda4 <- qda(label ~ NDAI + SD + AN, data = train_set1) # NDAI, SD and AN
+pred_qda4 <- predict(model_qda4, val_set1)$class
+(err_qda4 <- mean(pred_qda4 != val_set1$label))
+
+# Logistic
+mode_logis1 <- glm(((label + 1)/2) ~ NDAI + SD + CORR, data = train_set1,
+                   family = binomial(link = "logit")) # The Three featrures
+yhat_logis1 <- predict(mode_logis1, val_set1, type = "response")
 class_logis1 <- yhat_logis1 > 0.5
-(err_logis1 <- mean(as.numeric(class_logis1) != (total_data2$label + 1)/2))
+(err_logis1 <- mean(as.numeric(class_logis1) != (val_set1$label + 1)/2))
 
-mode_logis2 <- glm(((label + 1)/2) ~ NDAI + CORR + AN, data = total_data2,
+mode_logis2 <- glm(((label + 1)/2) ~ NDAI + CORR + AN, data = train_set1,
                    family = binomial(link = "logit"))  # NDAI, CORR and AN
-yhat_logis2 <- predict(mode_logis2, total_data2, type = "response")
+yhat_logis2 <- predict(mode_logis2, val_set1, type = "response")
 class_logis2 <- yhat_logis2 > 0.5
-(err_logis2 <- mean(as.numeric(class_logis2) != (total_data2$label + 1)/2))
+(err_logis2 <- mean(as.numeric(class_logis2) != (val_set1$label + 1)/2))
 
-mode_logis3 <- glm(((label + 1)/2) ~ NDAI + AF + AN, data = total_data2,
-                   family = binomial(link = "logit")) # NDAI, AF and AN
-yhat_logis3 <- predict(mode_logis3, total_data2, type = "response")
+mode_logis3 <- glm(((label + 1)/2) ~ NDAI + AF + AN, data = train_set1,
+                   family = binomial(link = "logit")) # NDAI, AF and AN. ------BEST
+yhat_logis3 <- predict(mode_logis3, val_set1, type = "response")
 class_logis3 <- yhat_logis3 > 0.5
-(err_logis3 <- mean(as.numeric(class_logis3) != (total_data2$label + 1)/2))
+(err_logis3 <- mean(as.numeric(class_logis3) != (val_set1$label + 1)/2))
 
-mode_logis4 <- glm(((label + 1)/2) ~ NDAI + SD + AN, data = total_data2,
+mode_logis4 <- glm(((label + 1)/2) ~ NDAI + SD + AN, data = train_set1,
                    family = binomial(link = "logit")) # NDAI, SD and AN
-yhat_logis4 <- predict(mode_logis4, total_data2, type = "response")
+yhat_logis4 <- predict(mode_logis4, val_set1, type = "response")
 class_logis4 <- yhat_logis4 > 0.5
-(err_logis4 <- mean(as.numeric(class_logis4) != (total_data2$label + 1)/2))
+(err_logis4 <- mean(as.numeric(class_logis4) != (val_set1$label + 1)/2))
 
 # SVM
-svmfit = svm(y ~ ., data = dat, kernel = "linear", cost = 10, scale = FALSE)
-print(svmfit)
+# model_svm1 = svm(label ~ NDAI + SD + CORR, data = train_set1, kernel = "linear", cost = 10, scale = FALSE)
+# print(svmfit)
 ```
 
 
