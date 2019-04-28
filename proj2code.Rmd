@@ -16,7 +16,6 @@ image3 <- read.table("image_data/image3.txt", header = FALSE, col.names = column
 image1$class <- rep(1, nrow(image1))
 image2$class <- rep(2, nrow(image2))
 image3$class <- rep(3, nrow(image3))
-
 ```
     
 ```{r message=FALSE}
@@ -170,6 +169,8 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, ki
 splitting data by block of equal area to address spatial CORRelation
 ```{r}
 total_data <- list(image1, image2, image3)
+helper <- rbind(image1, image2, image3)
+total_data2 <- helper[helper$label != 0, ]
 
 helper1 <- total_data %>% lapply(split_data, kind = "train")
 helper2 <- total_data %>% lapply(split_data, kind = "val")
@@ -205,13 +206,19 @@ nrow(test_set2[test_set2$label == -1, ])/nrow(test_set2)
 
 
 ```{r}
-total_no0 <- rbind(image1, image2, iamge3)[]
 nrow(train_set1)
 nrow(val_set1)
 nrow(test_set1)
-
+hist(rbind(train_val_set1, test_set1)$blocks)
 ```
-
+   
+```{r}
+nrow(train_set2)
+nrow(val_set2)
+nrow(test_set2)
+nrow(total_data2)
+hist(rbind(train_val_set2, test_set2)$blocks)
+```
 
 2b.
 ```{r}
@@ -238,12 +245,12 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
       yhat <- predict(model, trainFeature[folds[[i]], ], type = "response")
       class <- yhat > 0.5
       # error_df[i,1] <- lossfn(as.numeric(class), (trainLabel[folds[[i]]] + 1)/2)
-      error_df[i,1] <- mean(as.numeric(class) != (trainLabel[folds[[i]]] + 1)/2)
+      error_df[i,1] <- lossfn(as.numeric(class), ((trainLabel[folds[[i]]] + 1)/2))
     }
     return(error_df)
   }
 }
-CVgeneric("logistic", train1[,c(4,6,11)], train1$label, loss = loss())
+CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
 
 ```
 
