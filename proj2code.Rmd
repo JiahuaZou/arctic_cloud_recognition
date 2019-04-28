@@ -28,6 +28,8 @@ library(RColorBrewer)
 library(caret)
 library(stringr)
 library(class)
+library(cluster)
+library(factoextra)
 ```
     
 Section 1: Data Collection and Exploration  
@@ -131,18 +133,26 @@ gg3_CORR <- ggplot(data = image3) +
 Section 2: Preparation   
 2a. defining function to help.        
 ```{r}
-split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, kind = "train") {
+split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, method = 1) {
+
   #
   #
   #
   #
   #
+  
   '%notin%' <- Negate('%in%')
   
   data_no0 <- data[data$label != 0, ]
-  data_no0$xbins <- func(data_no0$x, xs, labels = seq(1:xs))
-  data_no0$ybins <- func(data_no0$y, ys, labels = seq(1:ys))
-  data_no0$blocks <- as.numeric(factor(paste0(data_no0$xbins, data_no0$ybins)))
+  if (method == 1) {
+    data_no0$xbins <- func(data_no0$x, xs, labels = seq(1:xs))
+    data_no0$ybins <- func(data_no0$y, ys, labels = seq(1:ys))
+    data_no0$blocks <- as.numeric(factor(paste0(data_no0$xbins, data_no0$ybins)))
+  } else {
+    helper <- round(data_no0[, c("x", "y")])
+    k2 <- kmeans(helper, centers = xs * ys, nstart = 3)
+    data_no0$blocks <- k2$cluster
+  }
   
   blocks <- length(unique(data_no0$blocks))
   test_idx_temp <- sample(seq(1:blocks), size * blocks)
@@ -155,47 +165,48 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, ki
   val_set_temp <- train_val_set_temp[train_val_set_temp$blocks %in% val_idx_temp, ]
   train_set_temp <- train_val_set_temp[train_val_set_temp$blocks %notin% val_idx_temp, ]
   
-  if (kind == "train") {
-    return(train_set_temp)
-  } else if (kind == "test") {
-    return(test_set_temp)
-  } else if (kind == "val") {
-    return(val_set_temp)
-  } else {
-    return(train_val_set_temp)
-  }
+  return(list(train_val_set_temp, train_set_temp, val_set_temp, test_set_temp))
 }
 ```
-
+    
+    
+    
 splitting data by block of equal area to address spatial CORRelation
 ```{r}
 total_data <- list(image1, image2, image3)
 helper <- rbind(image1, image2, image3)
 total_data2 <- helper[helper$label != 0, ]
 
-helper1 <- total_data %>% lapply(split_data, kind = "train")
-helper2 <- total_data %>% lapply(split_data, kind = "val")
-helper3 <- total_data %>% lapply(split_data, kind = "test")
-helper4 <- total_data %>% lapply(split_data, kind = "train_val")
+helper1 <- split_data(image1)
+helper2 <- split_data(image2)
+helper3 <- split_data(image3)
 
-train_set1 <- rbind(helper1[[1]], helper1[[2]], helper1[[3]])
-val_set1 <- rbind(helper2[[1]], helper2[[2]], helper2[[3]])
-test_set1 <- rbind(helper3[[1]], helper3[[2]], helper3[[3]])
-train_val_set1 <- rbind(helper4[[1]], helper4[[2]], helper4[[3]])
+train_val_set1 <- rbind(helper1[[1]], helper2[[1]], helper3[[1]])
+train_set1 <- rbind(helper1[[2]], helper2[[2]], helper3[[2]])
+val_set1 <- rbind(helper1[[3]], helper2[[3]], helper3[[3]])
+test_set1 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
 ```
     
 2a. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously. Use cut_number (equal observation) instead of cut_interval (equal length).   
 ```{r}
-helper1 <- total_data %>% lapply(split_data, func = cut_number, kind = "train")
-helper2 <- total_data %>% lapply(split_data, func = cut_number, kind = "val")
-helper3 <- total_data %>% lapply(split_data, func = cut_number, kind = "test")
-helper4 <- total_data %>% lapply(split_data, func = cut_number, kind = "train_val")
+set.seed(1542019)
+helper1 <- split_data(image1, method = 2)
+helper2 <- split_data(image2, method = 2)
+helper3 <- split_data(image3, method = 2)
 
-train_set2 <- rbind(helper1[[1]], helper1[[2]], helper1[[3]])
-val_set2 <- rbind(helper2[[1]], helper2[[2]], helper2[[3]])
-test_set2 <- rbind(helper3[[1]], helper3[[2]], helper3[[3]])
-train_val_set2 <- rbind(helper4[[1]], helper4[[2]], helper4[[3]])
+train_val_set2 <- rbind(helper1[[1]], helper2[[1]], helper3[[1]])
+train_set2 <- rbind(helper1[[2]], helper2[[2]], helper3[[2]])
+val_set2 <- rbind(helper1[[3]], helper2[[3]], helper3[[3]])
+test_set2 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
 ```
+      
+      
+```{r}
+rbind(train_val_set2, test_set2) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
+```
+      
+      
+      
       
 2b. trivial classifier    
 ```{r}
@@ -206,22 +217,7 @@ nrow(test_set2[test_set2$label == -1, ])/nrow(test_set2)
 
 
 
-```{r}
-nrow(train_set1)
-nrow(val_set1)
-nrow(test_set1)
-hist(rbind(train_val_set1, test_set1)$blocks)
-```
    
-```{r}
-nrow(train_set2)
-nrow(val_set2)
-nrow(test_set2)
-nrow(total_data2)
-hist(rbind(train_val_set2, test_set2)$blocks)
-```
-
-2b.
 ```{r}
 cor(total_data2[,c(3,4,6,11)])
 ```
