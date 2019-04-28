@@ -27,6 +27,7 @@ library(MASS)
 library(RColorBrewer)
 library(caret)
 library(stringr)
+library(class)
 ```
     
 Section 1: Data Collection and Exploration  
@@ -233,9 +234,11 @@ loss <- function(label, label_hat){
 }
 
 CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
+  
   folds <- createFolds(trainLabel, k = K)
   error_df <- data.frame(error = rep(0, K))
-  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "random forest", "KNN"))){
+  
+  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "random forest", "knn"))){
     stop("classifier must be one of qda, logistics, random forest, KNN.")
   }else if(str_to_lower(classifier) == "logistic"){
     for(i in 1:K){
@@ -244,13 +247,32 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
                    family = binomial(link = "logit"))
       yhat <- predict(model, trainFeature[folds[[i]], ], type = "response")
       class <- yhat > 0.5
-      # error_df[i,1] <- lossfn(as.numeric(class), (trainLabel[folds[[i]]] + 1)/2)
       error_df[i,1] <- lossfn(as.numeric(class), ((trainLabel[folds[[i]]] + 1)/2))
     }
     return(error_df)
+    
+  }else if(str_to_lower(classifier) == "qda"){
+    for(i in 1:K){
+      model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + AN, data = trainFeature[-folds[[i]], ])
+      pred_qda <- predict(model, trainFeature[folds[[i]], ])$class
+      error_df[i,1] <- lossfn(pred_qda, trainLabel[folds[[i]]])
+    }
+    return(error_df)
+    
+  }else if(str_to_lower(classifier) == "knn"){
+    for(i in 1:K){
+      model <- knn(train = trainFeature[-folds[[i]], ], test = trainFeature[folds[[i]], ],
+             cl = trainLabel[-folds[[i]]], k = 5)
+      error_df[i,1] <- lossfn(model, trainLabel[folds[[i]]])
+    }
+    return(error_df)
+    
   }
 }
+
 CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+CVgeneric("qda", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+CVgeneric("KNN", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
 
 ```
 
@@ -260,28 +282,36 @@ Section 3: Modeling
 ```{r}
 # Split data 1. 
 train1 <- rbind(train_set1, val_set1)
-folds1 <- createFolds(train1$label, k = 5)
 
 # Logistic
-err_logis <- data.frame(error = rep(0, 5))
-for(i in 1:5){
-  model_logis <- glm(((label + 1)/2) ~ NDAI + CORR + AN, data = train1[-folds1[[i]], ],
-                     family = binomial(link = "logit"))
-  yhat_logis <- predict(model_logis, train1[folds1[[i]], ], type = "response")
-  class_logis <- yhat_logis > 0.5
-  err_logis[i,1] <- mean(as.numeric(class_logis) != (train1[folds1[[i]], "label"] + 1)/2)
-} 
-err_logis
+err_logis1 <- CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_logis1
 
 # QDA
-err_qda <- data.frame(error = rep(0, 5))
-for(i in 1:5){
-  model_qda <- qda(label ~ NDAI + CORR + AN, data = train1[-folds1[[i]], ])
-  pred_qda <- predict(model_qda, train1[folds1[[i]], ])$class
-  # err_qda[i,1] <- mean(pred_qda != train1[folds1[[i]],"label"])
-  err_qda[i,1] <- loss(pred_qda, train1[folds1[[i]],"label"])
-}
-err_qda
+err_qda1 <- CVgeneric("qda", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_qda1
+
+# KNN
+err_knn1 <- CVgeneric("KNN", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_knn1
+
+# Summary
+error_split1 <- data.frame(logistic = err_logis1, qda = err_qda1, KNN = err_knn1)
+colnames(error_split1) <- c("logistic", "QDA", "KNN")
+error_split1
+colMeans(error_split1)
+
+# Assumption
+ggplot(data = train1) +
+  geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label))) + 
+  scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+ggplot(data = train1) +
+  geom_point(aes(x = NDAI, y = AN, shape = factor(label), color = factor(label))) + 
+  scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+ggplot(data = train1) +
+  geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label))) + 
+  scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+# How to judge assumption?
 ```
 
 
