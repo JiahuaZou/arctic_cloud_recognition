@@ -17,7 +17,6 @@ image1$class <- rep(1, nrow(image1))
 image2$class <- rep(2, nrow(image2))
 image3$class <- rep(3, nrow(image3))
 
-total_data <- rbind(image1, image2, image3)
 ```
     
 ```{r}
@@ -26,6 +25,7 @@ library(ggplot2)
 library(corrplot)
 library(dplyr)
 library(MASS)
+library(caret)
 ```
     
 Section 1: Data Collection and Exploration  
@@ -128,80 +128,98 @@ gg3_CORR <- ggplot(data = image3) +
     
     
 Section 2: Preparation   
-2a. splitting data by block to address spatial CORRelation.         
+2a. defining function to help.        
 ```{r}
-# specify the number of bin we want on x and y, number of blocks are thus xs * ys
-# 30 is a arbitrary decision
-set.seed(154)
+split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, kind = "train") {
+  #
+  #
+  #
+  #
+  #
+  '%notin%' <- Negate('%in%')
+  
+  data_no0 <- data[data$label != 0, ]
+  data_no0$xbins <- func(data_no0$x, xs, labels = seq(1:xs))
+  data_no0$ybins <- func(data_no0$y, ys, labels = seq(1:ys))
+  data_no0$blocks <- as.numeric(factor(paste0(data_no0$xbins, data_no0$ybins)))
+  
+  blocks <- length(unique(data_no0$blocks))
+  test_idx_temp <- sample(seq(1:blocks), size * blocks)
+  test_set_temp <- data_no0[data_no0$blocks %in% test_idx_temp, ]
+  train_val_set_temp <- data_no0[data_no0$blocks %notin% test_idx_temp, ]
 
-xs <- 20
-ys <- 20
-test_size <- 0.2
-val_size <- 0.2
-'%notin%' <- Negate('%in%') 
-
-total_data2 <- total_data[total_data$label != 0, ]
-total_data2$xbins <- cut_interval(total_data2$x, xs, labels = seq(1:xs))
-total_data2$ybins <- cut_interval(total_data2$y, ys, labels = seq(1:ys))
-
-total_data2$blocks <- as.numeric(factor(paste0(total_data2$xbins, total_data2$ybins)))
-
-# there may be some blocks without any labeled data
-blocks <- length(unique(total_data2$blocks))
-test_idx1 <- sample(seq(1:blocks), test_size * blocks)
-test_set1 <- total_data2[total_data2$blocks %in% test_idx1, ]
-train_set1 <- total_data2[total_data2$blocks %notin% test_idx1, ]
-
-#further splitting trainset into training and validation set.
-train_len1 <- length(unique(train_set1$blocks))
-val_idx1 <- sample(seq(1:train_len1), val_size * train_len1)
-val_set1 <- train_set1[train_set1$blocks %in% val_idx1, ]
-train_set1 <- train_set1[train_set1$blocks %notin% val_idx1, ]
-
-hist(total_data2$blocks)
-ggplot()
+  #further splitting trainset into training and validation set.
+  train_val_len_temp <- length(unique(train_val_set_temp$blocks))
+  val_idx_temp <- sample(seq(1:train_val_len_temp), val_size * train_val_len_temp)
+  val_set_temp <- train_val_set_temp[train_val_set_temp$blocks %in% val_idx_temp, ]
+  train_set_temp <- train_val_set_temp[train_val_set_temp$blocks %notin% val_idx_temp, ]
+  
+  if (kind == "train") {
+    return(train_set_temp)
+  } else if (kind == "test") {
+    return(test_set_temp)
+  } else if (kind == "val") {
+    return(val_set_temp)
+  } else {
+    return(train_val_set_temp)
+  }
+}
 ```
-        
-2a. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously.    
+
+splitting data by block of equal area to address spatial CORRelation
 ```{r}
+total_data <- list(image1, image2, image3)
 
-set.seed(154)
+helper1 <- total_data %>% lapply(split_data, kind = "train")
+helper2 <- total_data %>% lapply(split_data, kind = "val")
+helper3 <- total_data %>% lapply(split_data, kind = "test")
+helper4 <- total_data %>% lapply(split_data, kind = "train_val")
 
-total_data2$xbins <- cut_number(total_data2$x, xs, labels = seq(1:xs))
-total_data2$ybins <- cut_number(total_data2$y, ys, labels = seq(1:ys))
-
-total_data2$blocks <- as.numeric(factor(paste0(total_data2$xbins, total_data2$ybins)))
-
-# there may be some blocks without any labeled data
-blocks <- length(unique(total_data2$blocks))
-test_idx2 <- sample(seq(1:blocks), test_size * blocks)
-test_set2 <- total_data2[total_data2$blocks %in% test_idx2, ]
-train_set2 <- total_data2[total_data2$blocks %notin% test_idx2, ]
-
-#further splitting trainset into training and validation set.
-train_len2 <- length(unique(train_set2$blocks))
-val_idx2 <- sample(seq(1:train_len2), val_size * train_len2)
-val_set2 <- train_set2[train_set2$blocks %in% val_idx2, ]
-train_set2 <- train_set2[train_set2$blocks %notin% val_idx2, ]
-
-hist(total_data2$blocks)
+train_set1 <- rbind(helper1[[1]], helper1[[2]], helper1[[3]])
+val_set1 <- rbind(helper2[[1]], helper2[[2]], helper2[[3]])
+test_set1 <- rbind(helper3[[1]], helper3[[2]], helper3[[3]])
+train_val_set1 <- rbind(helper4[[1]], helper4[[2]], helper4[[3]])
 ```
-   
+    
+2a. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously. Use cut_number (equal observation) instead of cut_interval (equal length).   
+```{r}
+helper1 <- total_data %>% lapply(split_data, func = cut_number, kind = "train")
+helper2 <- total_data %>% lapply(split_data, func = cut_number, kind = "val")
+helper3 <- total_data %>% lapply(split_data, func = cut_number, kind = "test")
+helper4 <- total_data %>% lapply(split_data, func = cut_number, kind = "train_val")
+
+train_set2 <- rbind(helper1[[1]], helper1[[2]], helper1[[3]])
+val_set2 <- rbind(helper2[[1]], helper2[[2]], helper2[[3]])
+test_set2 <- rbind(helper3[[1]], helper3[[2]], helper3[[3]])
+train_val_set2 <- rbind(helper4[[1]], helper4[[2]], helper4[[3]])
+```
+      
+2b. trivial classifier    
+```{r}
+# accuracy for the trivial classifier that report everything as -1, is just the fraction of -1
+# in the original data set
+nrow(test_set2[test_set2$label == -1, ])/nrow(test_set2)
+```
+
+
+
+```{r}
+total_no0 <- rbind(image1, image2, iamge3)[]
+nrow(train_set1)
+nrow(val_set1)
+nrow(test_set1)
+
+```
+
+
 
 ```{r}
 nrow(train_set2)
 nrow(val_set2)
 nrow(test_set2)
-nrow(total_data2)
+nrow(total_data3)
 ```
 
-
-```{r}
-nrow(train_set1)
-nrow(val_set1)
-nrow(test_set1)
-nrow(total_data2)
-```
 
 
 
