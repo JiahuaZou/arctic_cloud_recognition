@@ -30,6 +30,7 @@ library(stringr)
 library(class)
 library(cluster)
 library(factoextra)
+library(heplots)
 library(rpart)
 library(rpart.plot)
 library(randomForest)
@@ -132,7 +133,6 @@ gg3_CORR <- ggplot(data = image3) +
 ```
 
     
-    
 Section 2: Preparation   
 2a. defining function to help.        
 ```{r}
@@ -206,10 +206,14 @@ test_set2 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
       
       
 ```{r}
+rbind(train_val_set2, test_set2) %>% 
+  ggplot(aes(x = x, y = y)) + 
+  geom_point(aes(col = factor(blocks))) + 
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) +
+  theme_bw()
 rbind(train_val_set2, test_set2) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
 rbind(train_val_set1, test_set1) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
 ```
-      
       
       
       
@@ -221,11 +225,15 @@ nrow(test_set2[test_set2$label == -1, ])/nrow(test_set2)
 ```
 
 
-
-   
+2c.
 ```{r}
-cor(total_data2[,c(3,4,6,11)])
+cor(train_set1[,3:11])
+cor(train_set2[,3:11])
+corrplot(cor(train_set1[,3:11]), type="upper",tl.col="black", tl.srt=45)
+corrplot(cor(train_set2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 ```
+
+
 
 2d.
 ```{r}
@@ -243,8 +251,9 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
   
   folds <- createFolds(trainLabel, k = K)
   error_df <- data.frame(error = rep(0, K))
+  rownames(error_df) <- 1:K
   
-  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "randomforest", "knn", "tree"))){
+  if(!(str_to_lower(classifier) %in% c("lda", "qda", "logistic", "randomforest", "knn", "tree"))){
     stop("classifier must be one of qda, logistics, random forest, KNN.")
   }else if(str_to_lower(classifier) == "logistic"){
     for(i in 1:K){
@@ -262,6 +271,14 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
       model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
       pred_qda <- predict(model, trainFeature[folds[[i]], ])$class
       error_df[i,1] <- lossfn(pred_qda, trainLabel[folds[[i]]])
+    }
+    return(error_df)
+    
+  }else if(str_to_lower(classifier) == "lda"){
+    for(i in 1:K){
+      model <- lda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
+      pred_lda <- predict(model, trainFeature[folds[[i]], ])$class
+      error_df[i,1] <- lossfn(pred_lda, trainLabel[folds[[i]]])
     }
     return(error_df)
     
@@ -301,25 +318,40 @@ Section 3: Modeling
 3a.
 ```{r}
 # Split data 1. 
-train1 <- rbind(train_set1, val_set1)
+
+# Train
 
 # Logistic
-err_logis1 <- CVgeneric("logistic", train_set1[,c(4,5,6)], train_set1$label, lossfn = loss)
+err_logis1 <- CVgeneric("logistic", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
 err_logis1
 
+# LDA
+err_lda1 <- CVgeneric("LDA", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
+err_lda1
+
 # QDA
-err_qda1 <- CVgeneric("qda", train_set1[,c(4,5,6)], train_set1$label, lossfn = loss)
+
+err_qda1 <- CVgeneric("QDA", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
 err_qda1
 
 # KNN
-err_knn1 <- CVgeneric("KNN", train_set1[,c(4,5,6)], train_set1$label, lossfn = loss)
+err_knn1 <- CVgeneric("KNN", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
 err_knn1
 
+# classification tree
+err_tree1 <- CVgeneric("tree", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
+err_tree1
+
+# random forest
+err_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
+err_rf1
+
 # Summary
-error_split1 <- data.frame(logistic = err_logis1, qda = err_qda1, KNN = err_knn1)
-colnames(error_split1) <- c("logistic", "QDA", "KNN")
-error_split1
-colMeans(error_split1)
+error_split1 <- data.frame(logistic = err_logis1, lda = err_lda1, qda = err_qda1, KNN = err_knn1, Tree = err_tree1, rf = err_rf1)
+colnames(error_split1) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+
+
+
 
 # Assumption
 ggplot(data = train1) +
@@ -334,17 +366,94 @@ ggplot(data = train1) +
 # How to judge assumption?
 ```
 
+```{r}
+# # Assumption
+# 
+# # Plot
+# ggplot(data = train_val_set1) +
+#   geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label)), alpha = 0.5) + 
+#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+# ggplot(data = train_val_set1) +
+#   geom_point(aes(x = NDAI, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
+#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+# ggplot(data = train_val_set1) +
+#   geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
+#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 
+# LDA & QDA, equal covariance
+covEllipses(train_set1[,4:6], factor(train_set1$label), 
+            fill = TRUE, pooled = FALSE,
+            col = c("blue", "red"), 
+            variables = 1:3,
+            fill.alpha = 0.05)
+boxM(train_set1[, 4:6], factor(train_set1$label)) # reject equal covafiance
+
+covEllipses(train_set2[,4:6], factor(train_set2$label), 
+            fill = TRUE, pooled = FALSE,
+            col = c("blue", "red"), 
+            variables = 1:3,
+            fill.alpha = 0.05)
+boxM(train_set2[, 4:6], factor(train_set2$label))
+# LDA & QDA, Gaussian
+par(mfrow = c(1,3))
+for(i in 4:6){
+  qqnorm(train_set1[which(train_set1$label == 1),i], ylab = colnames(train_set1)[i])
+  qqline(train_set1[which(train_set1$label == 1),i], col = 2)
+}
+for(i in 4:6){
+  qqnorm(train_set1[which(train_set1$label == -1),i], ylab = colnames(train_set2)[i])
+  qqline(train_set1[which(train_set1$label == -1),i], col = 2)
+}
+
+```
+
+```{r}
+# Split data 2. 
+
+# Logistic
+err_logis2 <- CVgeneric("logistic", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_logis2
+
+# LDA
+err_lda2 <- CVgeneric("LDA", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_lda2
+
+# QDA
+err_qda2 <- CVgeneric("QDA", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_qda2
+
+# KNN
+err_knn2 <- CVgeneric("KNN", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_knn2
+
+# classification tree
+err_tree2 <- CVgeneric("tree", train_val_set2[,c(4,5,6)], train_val_set2$label, lossfn = loss)
+err_tree2
+
+# random forest
+err_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4,5,6)], train_val_set2$label, lossfn = loss)
+err_rf2
+
+# Summary
+error_split2 <- data.frame(logistic = err_logis2, lda = err_lda2, qda = err_qda2, KNN = err_knn2, Tree = err_tree2, rf = err_rf2)
+colnames(error_split2) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+
+```
+
+```{r}
+agreement1 <- rbind(1 - error_split1, colMeans(1 - error_split1))
+rownames(agreement1)[nrow(agreement1)] <- "average"
+
+agreement2 <- rbind(1 - error_split2, colMeans(1 - error_split2))
+rownames(agreement2)[nrow(agreement2)] <- "average"
+
+agreement1
+agreement2
+```
 
 
 
 ```{r}
-
-err_tree1 <- CVgeneric("tree", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
-err_tree1
-
-err_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
-err_rf1
 
 model_helper <- randomForest(factor(label) ~ NDAI + CORR + SD, data = train_set1[1:100000,])
 pred_rf <- predict(model_helper, val_set1, type = "class")
