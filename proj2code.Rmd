@@ -30,6 +30,7 @@ library(stringr)
 library(class)
 library(cluster)
 library(factoextra)
+library(heplots)
 ```
     
 Section 1: Data Collection and Exploration  
@@ -129,7 +130,6 @@ gg3_CORR <- ggplot(data = image3) +
 ```
 
     
-    
 Section 2: Preparation   
 2a. defining function to help.        
 ```{r}
@@ -170,7 +170,6 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, me
 ```
     
     
-    
 splitting data by block of equal area to address spatial CORRelation
 ```{r}
 total_data <- list(image1, image2, image3)
@@ -202,9 +201,12 @@ test_set2 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
       
       
 ```{r}
-rbind(train_val_set2, test_set2) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
+rbind(train_val_set2, test_set2) %>% 
+  ggplot(aes(x = x, y = y)) + 
+  geom_point(aes(col = factor(blocks))) + 
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) +
+  theme_bw()
 ```
-      
       
       
       
@@ -216,11 +218,15 @@ nrow(test_set2[test_set2$label == -1, ])/nrow(test_set2)
 ```
 
 
-
-   
+2c.
 ```{r}
-cor(total_data2[,c(3,4,6,11)])
+cor(train_set1[,3:11])
+cor(train_set2[,3:11])
+corrplot(cor(train_set1[,3:11]), type="upper",tl.col="black", tl.srt=45)
+corrplot(cor(train_set2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 ```
+
+
 
 2d.
 ```{r}
@@ -233,12 +239,13 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
   
   folds <- createFolds(trainLabel, k = K)
   error_df <- data.frame(error = rep(0, K))
+  rownames(error_df) <- 1:K
   
-  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "random forest", "knn"))){
+  if(!(str_to_lower(classifier) %in% c("lda", "qda", "logistic", "random forest", "knn"))){
     stop("classifier must be one of qda, logistics, random forest, KNN.")
   }else if(str_to_lower(classifier) == "logistic"){
     for(i in 1:K){
-      model <- glm(((trainLabel[-folds[[i]]] + 1)/2) ~ NDAI + CORR + AN, 
+      model <- glm(((trainLabel[-folds[[i]]] + 1)/2) ~ NDAI + CORR + SD, 
                    data = trainFeature[-folds[[i]], ],
                    family = binomial(link = "logit"))
       yhat <- predict(model, trainFeature[folds[[i]], ], type = "response")
@@ -249,9 +256,17 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
     
   }else if(str_to_lower(classifier) == "qda"){
     for(i in 1:K){
-      model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + AN, data = trainFeature[-folds[[i]], ])
+      model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
       pred_qda <- predict(model, trainFeature[folds[[i]], ])$class
       error_df[i,1] <- lossfn(pred_qda, trainLabel[folds[[i]]])
+    }
+    return(error_df)
+    
+  }else if(str_to_lower(classifier) == "lda"){
+    for(i in 1:K){
+      model <- lda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
+      pred_lda <- predict(model, trainFeature[folds[[i]], ])$class
+      error_df[i,1] <- lossfn(pred_lda, trainLabel[folds[[i]]])
     }
     return(error_df)
     
@@ -266,9 +281,9 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
   }
 }
 
-CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
-CVgeneric("qda", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
-CVgeneric("KNN", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+# CVgeneric("logistic", train_set1[,4:6], train_set1$label, lossfn = loss)
+# CVgeneric("qda", train_set1[,4:6], train_set1$label, lossfn = loss)
+# CVgeneric("KNN", train_set1[,4:6], train_set1$label, lossfn = loss)
 
 ```
 
@@ -277,89 +292,108 @@ Section 3: Modeling
 3a.
 ```{r}
 # Split data 1. 
-train1 <- rbind(train_set1, val_set1)
+
+# Train
 
 # Logistic
-err_logis1 <- CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_logis1 <- CVgeneric("logistic", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
 err_logis1
 
+# LDA
+err_lda1 <- CVgeneric("LDA", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
+err_lda1
+
 # QDA
-err_qda1 <- CVgeneric("qda", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_qda1 <- CVgeneric("QDA", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
 err_qda1
 
 # KNN
-err_knn1 <- CVgeneric("KNN", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_knn1 <- CVgeneric("KNN", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
 err_knn1
 
 # Summary
-error_split1 <- data.frame(logistic = err_logis1, qda = err_qda1, KNN = err_knn1)
-colnames(error_split1) <- c("logistic", "QDA", "KNN")
-error_split1
-colMeans(error_split1)
+error_split1 <- data.frame(logistic = err_logis1, lda = err_lda1, qda = err_qda1, KNN = err_knn1)
+colnames(error_split1) <- c("logistic", "LDA", "QDA", "KNN")
 
-# Assumption
-ggplot(data = train1) +
-  geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label))) + 
-  scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-ggplot(data = train1) +
-  geom_point(aes(x = NDAI, y = AN, shape = factor(label), color = factor(label))) + 
-  scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-ggplot(data = train1) +
-  geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label))) + 
-  scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-# How to judge assumption?
 ```
-
-
 
 ```{r}
-# Split data 1. 
-# QDA
-model_qda1 <- qda(label ~ NDAI + SD + CORR, data = train_set1) # The Three featrures
-pred_qda1 <- predict(model_qda1, val_set1)$class
-(err_qda1 <- mean(pred_qda1 != val_set1$label))
+# # Assumption
+# 
+# # Plot
+# ggplot(data = train_val_set1) +
+#   geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label)), alpha = 0.5) + 
+#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+# ggplot(data = train_val_set1) +
+#   geom_point(aes(x = NDAI, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
+#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
+# ggplot(data = train_val_set1) +
+#   geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
+#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 
-model_qda2 <- qda(label ~ NDAI + CORR + AN, data = train_set1) # NDAI, CORR and AN
-pred_qda2 <- predict(model_qda2, val_set1)$class
-(err_qda2 <- mean(pred_qda2 != val_set1$label))
+# LDA & QDA, equal covariance
+covEllipses(train_set1[,4:6], factor(train_set1$label), 
+            fill = TRUE, pooled = FALSE,
+            col = c("blue", "red"), 
+            variables = 1:3,
+            fill.alpha = 0.05)
+boxM(train_set1[, 4:6], factor(train_set1$label)) # reject equal covafiance
 
-model_qda3 <- qda(label ~ NDAI + AF + AN, data = train_set1) # NDAI, AF and AN. ------BEST
-pred_qda3 <- predict(model_qda3, val_set1)$class
-(err_qda3 <- mean(pred_qda3 != val_set1$label))
+covEllipses(train_set2[,4:6], factor(train_set2$label), 
+            fill = TRUE, pooled = FALSE,
+            col = c("blue", "red"), 
+            variables = 1:3,
+            fill.alpha = 0.05)
+boxM(train_set2[, 4:6], factor(train_set2$label))
+# LDA & QDA, Gaussian
+par(mfrow = c(1,3))
+for(i in 4:6){
+  qqnorm(train_set1[which(train_set1$label == 1),i], ylab = colnames(train_set1)[i])
+  qqline(train_set1[which(train_set1$label == 1),i], col = 2)
+}
+for(i in 4:6){
+  qqnorm(train_set1[which(train_set1$label == -1),i], ylab = colnames(train_set2)[i])
+  qqline(train_set1[which(train_set1$label == -1),i], col = 2)
+}
 
-model_qda4 <- qda(label ~ NDAI + SD + AN, data = train_set1) # NDAI, SD and AN
-pred_qda4 <- predict(model_qda4, val_set1)$class
-(err_qda4 <- mean(pred_qda4 != val_set1$label))
+```
+
+```{r}
+# Split data 2. 
 
 # Logistic
-mode_logis1 <- glm(((label + 1)/2) ~ NDAI + SD + CORR, data = train_set1,
-                   family = binomial(link = "logit")) # The Three featrures
-yhat_logis1 <- predict(mode_logis1, val_set1, type = "response")
-class_logis1 <- yhat_logis1 > 0.5
-(err_logis1 <- mean(as.numeric(class_logis1) != (val_set1$label + 1)/2))
+err_logis2 <- CVgeneric("logistic", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_logis2
 
-mode_logis2 <- glm(((label + 1)/2) ~ NDAI + CORR + AN, data = train_set1,
-                   family = binomial(link = "logit"))  # NDAI, CORR and AN
-yhat_logis2 <- predict(mode_logis2, val_set1, type = "response")
-class_logis2 <- yhat_logis2 > 0.5
-(err_logis2 <- mean(as.numeric(class_logis2) != (val_set1$label + 1)/2))
+# LDA
+err_lda2 <- CVgeneric("LDA", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_lda2
 
-mode_logis3 <- glm(((label + 1)/2) ~ NDAI + AF + AN, data = train_set1,
-                   family = binomial(link = "logit")) # NDAI, AF and AN. ------BEST
-yhat_logis3 <- predict(mode_logis3, val_set1, type = "response")
-class_logis3 <- yhat_logis3 > 0.5
-(err_logis3 <- mean(as.numeric(class_logis3) != (val_set1$label + 1)/2))
+# QDA
+err_qda2 <- CVgeneric("QDA", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_qda2
 
-mode_logis4 <- glm(((label + 1)/2) ~ NDAI + SD + AN, data = train_set1,
-                   family = binomial(link = "logit")) # NDAI, SD and AN
-yhat_logis4 <- predict(mode_logis4, val_set1, type = "response")
-class_logis4 <- yhat_logis4 > 0.5
-(err_logis4 <- mean(as.numeric(class_logis4) != (val_set1$label + 1)/2))
+# KNN
+err_knn2 <- CVgeneric("KNN", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_knn2
 
-# SVM
-# model_svm1 = svm(label ~ NDAI + SD + CORR, data = train_set1, kernel = "linear", cost = 10, scale = FALSE)
-# print(svmfit)
+# Summary
+error_split2 <- data.frame(logistic = err_logis2, lda = err_lda2, qda = err_qda2, KNN = err_knn2)
+colnames(error_split2) <- c("logistic", "LDA", "QDA", "KNN")
+
 ```
+
+```{r}
+agreement1 <- rbind(1 - error_split1, colMeans(1 - error_split1))
+rownames(agreement1)[nrow(agreement1)] <- "average"
+
+agreement2 <- rbind(1 - error_split2, colMeans(1 - error_split2))
+rownames(agreement2)[nrow(agreement2)] <- "average"
+
+agreement1
+agreement2
+```
+
 
 
 
