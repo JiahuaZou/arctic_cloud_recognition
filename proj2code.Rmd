@@ -30,6 +30,9 @@ library(stringr)
 library(class)
 library(cluster)
 library(factoextra)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
 ```
     
 Section 1: Data Collection and Exploration  
@@ -133,7 +136,8 @@ gg3_CORR <- ggplot(data = image3) +
 Section 2: Preparation   
 2a. defining function to help.        
 ```{r}
-split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, method = 1) {
+split_data <- function(data, func = cut_interval, xs = 3, ys = 3, test_size = 0.2, 
+                       val_size = 0.2, method = 1) {
 
   #
   #
@@ -155,7 +159,7 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, me
   }
   
   blocks <- length(unique(data_no0$blocks))
-  test_idx_temp <- sample(seq(1:blocks), size * blocks)
+  test_idx_temp <- sample(seq(1:blocks), test_size * blocks)
   test_set_temp <- data_no0[data_no0$blocks %in% test_idx_temp, ]
   train_val_set_temp <- data_no0[data_no0$blocks %notin% test_idx_temp, ]
 
@@ -171,7 +175,7 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, size = 0.2, me
     
     
     
-splitting data by block of equal area to address spatial CORRelation
+2a.  splitting data by block of equal area to address spatial CORRelation
 ```{r}
 total_data <- list(image1, image2, image3)
 helper <- rbind(image1, image2, image3)
@@ -187,7 +191,7 @@ val_set1 <- rbind(helper1[[3]], helper2[[3]], helper3[[3]])
 test_set1 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
 ```
     
-2a. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously. Use cut_number (equal observation) instead of cut_interval (equal length).   
+2a continued. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously. Use cut_number (equal observation) instead of cut_interval (equal length).   
 ```{r}
 set.seed(1542019)
 helper1 <- split_data(image1, method = 2)
@@ -203,6 +207,7 @@ test_set2 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
       
 ```{r}
 rbind(train_val_set2, test_set2) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
+rbind(train_val_set1, test_set1) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
 ```
       
       
@@ -231,14 +236,19 @@ loss <- function(label, label_hat){
 
 CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
   
+  #
+  #
+  #
+  #
+  
   folds <- createFolds(trainLabel, k = K)
   error_df <- data.frame(error = rep(0, K))
   
-  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "random forest", "knn"))){
+  if(!(str_to_lower(classifier) %in% c("qda", "logistic", "randomforest", "knn", "tree"))){
     stop("classifier must be one of qda, logistics, random forest, KNN.")
   }else if(str_to_lower(classifier) == "logistic"){
     for(i in 1:K){
-      model <- glm(((trainLabel[-folds[[i]]] + 1)/2) ~ NDAI + CORR + AN, 
+      model <- glm(((trainLabel[-folds[[i]]] + 1)/2) ~ NDAI + CORR + SD, 
                    data = trainFeature[-folds[[i]], ],
                    family = binomial(link = "logit"))
       yhat <- predict(model, trainFeature[folds[[i]], ], type = "response")
@@ -249,7 +259,7 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
     
   }else if(str_to_lower(classifier) == "qda"){
     for(i in 1:K){
-      model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + AN, data = trainFeature[-folds[[i]], ])
+      model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
       pred_qda <- predict(model, trainFeature[folds[[i]], ])$class
       error_df[i,1] <- lossfn(pred_qda, trainLabel[folds[[i]]])
     }
@@ -263,16 +273,30 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
     }
     return(error_df)
     
+  }else if(str_to_lower(classifier) == "tree") {
+    for (i in 1:K) {
+      model <- rpart(factor(trainLabel[-folds[[i]]]) ~ NDAI + CORR + SD, 
+                     data = trainFeature[-folds[[i]], ])
+      pred_tree <- predict(model, trainFeature[folds[[i]], ], type = "class")
+      yhat <- as.numeric(as.character(pred_tree))
+      error_df[i,1] <- lossfn(yhat, trainLabel[folds[[i]]])
+    }
+    return(error_df)
+  }else if(str_to_lower(classifier) == "randomforest") {
+    for (i in 1:K) {
+      model <- randomForest(factor(trainLabel[-folds[[i]]]) ~ NDAI + CORR + SD,
+                            data = trainFeature[-folds[[i]], ])
+      pred_rf <- predict(model, trainFeature[folds[[i]], ], type = "class")
+      yhat <- as.numeric(as.character(pred_rf))
+      error_df[i,1] <- lossfn(yhat, trainLabel[folds[[i]]])
+    }
+    return(error_df)
   }
 }
 
-CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
-CVgeneric("qda", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
-CVgeneric("KNN", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
-
 ```
-
-
+    
+    
 Section 3: Modeling   
 3a.
 ```{r}
@@ -280,15 +304,15 @@ Section 3: Modeling
 train1 <- rbind(train_set1, val_set1)
 
 # Logistic
-err_logis1 <- CVgeneric("logistic", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_logis1 <- CVgeneric("logistic", train_set1[,c(4,5,6)], train_set1$label, lossfn = loss)
 err_logis1
 
 # QDA
-err_qda1 <- CVgeneric("qda", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_qda1 <- CVgeneric("qda", train_set1[,c(4,5,6)], train_set1$label, lossfn = loss)
 err_qda1
 
 # KNN
-err_knn1 <- CVgeneric("KNN", train_set1[,c(4,6,11)], train_set1$label, lossfn = loss)
+err_knn1 <- CVgeneric("KNN", train_set1[,c(4,5,6)], train_set1$label, lossfn = loss)
 err_knn1
 
 # Summary
@@ -302,64 +326,35 @@ ggplot(data = train1) +
   geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label))) + 
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 ggplot(data = train1) +
-  geom_point(aes(x = NDAI, y = AN, shape = factor(label), color = factor(label))) + 
+  geom_point(aes(x = NDAI, y = SD, shape = factor(label), color = factor(label))) + 
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 ggplot(data = train1) +
-  geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label))) + 
+  geom_point(aes(x = CORR, y = SD, shape = factor(label), color = factor(label))) + 
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 # How to judge assumption?
 ```
 
 
 
+
+
 ```{r}
-# Split data 1. 
-# QDA
-model_qda1 <- qda(label ~ NDAI + SD + CORR, data = train_set1) # The Three featrures
-pred_qda1 <- predict(model_qda1, val_set1)$class
-(err_qda1 <- mean(pred_qda1 != val_set1$label))
 
-model_qda2 <- qda(label ~ NDAI + CORR + AN, data = train_set1) # NDAI, CORR and AN
-pred_qda2 <- predict(model_qda2, val_set1)$class
-(err_qda2 <- mean(pred_qda2 != val_set1$label))
+err_tree1 <- CVgeneric("tree", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
+err_tree1
 
-model_qda3 <- qda(label ~ NDAI + AF + AN, data = train_set1) # NDAI, AF and AN. ------BEST
-pred_qda3 <- predict(model_qda3, val_set1)$class
-(err_qda3 <- mean(pred_qda3 != val_set1$label))
+err_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
+err_rf1
 
-model_qda4 <- qda(label ~ NDAI + SD + AN, data = train_set1) # NDAI, SD and AN
-pred_qda4 <- predict(model_qda4, val_set1)$class
-(err_qda4 <- mean(pred_qda4 != val_set1$label))
-
-# Logistic
-mode_logis1 <- glm(((label + 1)/2) ~ NDAI + SD + CORR, data = train_set1,
-                   family = binomial(link = "logit")) # The Three featrures
-yhat_logis1 <- predict(mode_logis1, val_set1, type = "response")
-class_logis1 <- yhat_logis1 > 0.5
-(err_logis1 <- mean(as.numeric(class_logis1) != (val_set1$label + 1)/2))
-
-mode_logis2 <- glm(((label + 1)/2) ~ NDAI + CORR + AN, data = train_set1,
-                   family = binomial(link = "logit"))  # NDAI, CORR and AN
-yhat_logis2 <- predict(mode_logis2, val_set1, type = "response")
-class_logis2 <- yhat_logis2 > 0.5
-(err_logis2 <- mean(as.numeric(class_logis2) != (val_set1$label + 1)/2))
-
-mode_logis3 <- glm(((label + 1)/2) ~ NDAI + AF + AN, data = train_set1,
-                   family = binomial(link = "logit")) # NDAI, AF and AN. ------BEST
-yhat_logis3 <- predict(mode_logis3, val_set1, type = "response")
-class_logis3 <- yhat_logis3 > 0.5
-(err_logis3 <- mean(as.numeric(class_logis3) != (val_set1$label + 1)/2))
-
-mode_logis4 <- glm(((label + 1)/2) ~ NDAI + SD + AN, data = train_set1,
-                   family = binomial(link = "logit")) # NDAI, SD and AN
-yhat_logis4 <- predict(mode_logis4, val_set1, type = "response")
-class_logis4 <- yhat_logis4 > 0.5
-(err_logis4 <- mean(as.numeric(class_logis4) != (val_set1$label + 1)/2))
-
-# SVM
-# model_svm1 = svm(label ~ NDAI + SD + CORR, data = train_set1, kernel = "linear", cost = 10, scale = FALSE)
-# print(svmfit)
+model_helper <- randomForest(factor(label) ~ NDAI + CORR + SD, data = train_set1[1:100000,])
+pred_rf <- predict(model_helper, val_set1, type = "class")
+yhat <- as.numeric(as.character(pred_rf))
+loss(yhat, val_set1$label)
+table(pred_rf)
+table(yhat)
+table(val_set1$label)
 ```
+
 
 
 
