@@ -35,6 +35,18 @@ library(rpart)
 library(rpart.plot)
 library(randomForest)
 ```
+  
+  
+define an operator called notin, and a loss function tha calculate accuracy of classifier
+```{r}
+'%notin%' <- Negate('%in%')
+
+loss <- function(label, label_hat){
+  ls <- mean(label != label_hat)
+  return(ls)
+}
+```
+  
     
 Section 1: Data Collection and Exploration  
 1b.  
@@ -145,7 +157,6 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, test_size = 0.
   #
   #
   
-  '%notin%' <- Negate('%in%')
   
   data_no0 <- data[data$label != 0, ]
   if (method == 1) {
@@ -173,14 +184,31 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, test_size = 0.
 }
 ```
     
+cheking if the number of observtions of blocks looks like a uniform distribution.  
+```{r}
+set.seed(1542019)
+helper1 <- as.data.frame(table(split_data(rbind(image1, image2, image3))[[1]]$blocks))
+helper2 <- as.data.frame(table(split_data(rbind(image1, image2, image3), 
+                                          xs = 2, ys = 2)[[1]]$blocks))
+helper3 <- as.data.frame(table(split_data(rbind(image1, image2, image3), 
+                                          xs = 4, ys = 4)[[1]]$blocks))
+
+colnames(helper1) <- c("block", "frequency")
+colnames(helper2) <- c("block", "frequency")
+colnames(helper3) <- c("block", "frequency")
+
+helper1 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") + 
+  ggtitle("9 blocks per image")
+helper2 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") + 
+  ggtitle("4 blocks per image")
+helper3 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") + 
+  ggtitle("16 blocks per image")
+```
     
     
 2a.  splitting data by block of equal area to address spatial CORRelation
 ```{r}
-total_data <- list(image1, image2, image3)
-helper <- rbind(image1, image2, image3)
-total_data2 <- helper[helper$label != 0, ]
-
+set.seed(154)
 helper1 <- split_data(image1)
 helper2 <- split_data(image2)
 helper3 <- split_data(image3)
@@ -206,13 +234,25 @@ test_set2 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
       
       
 ```{r}
-rbind(train_val_set2, test_set2) %>% 
-  ggplot(aes(x = x, y = y)) + 
-  geom_point(aes(col = factor(blocks))) + 
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) +
-  theme_bw()
-rbind(train_val_set2, test_set2) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
-rbind(train_val_set1, test_set1) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(col = blocks))
+set.seed(1542019)
+#rbind(train_val_set2, test_set2) %>% 
+#  ggplot(aes(x = x, y = y)) + 
+#  geom_point(aes(col = factor(blocks))) + 
+#  scale_color_manual(values=(brewer.pal(9, "Purples"))) +
+#  theme_bw()
+helper <- split_data(image1)
+helper1 <- rbind(helper[[1]], helper[[4]])
+helper <- split_data(image1, method = 2)
+helper2 <- rbind(helper[[1]], helper[[4]])
+
+helper1 %>% ggplot(aes(x = x, y = y)) + 
+  geom_raster(aes(fill = factor(blocks))) +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Method 1: Splitting by square block of equal area for image 1")
+helper2 %>% ggplot(aes(x = x, y = y)) + 
+  geom_raster(aes(fill = factor(blocks))) +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() +
+  ggtitle("Method 2: Splitting by K Means Clustering with k = 9 for image 1")
 ```
       
       
@@ -221,7 +261,8 @@ rbind(train_val_set1, test_set1) %>% ggplot(aes(x = x, y = y)) + geom_point(aes(
 ```{r}
 # accuracy for the trivial classifier that report everything as -1, is just the fraction of -1
 # in the original data set
-nrow(test_set2[test_set2$label == -1, ])/nrow(test_set2)
+helper <- table(rbind(train_val_set1, test_set1)$label)
+helper[1]/sum(helper)
 ```
 
 
@@ -235,82 +276,113 @@ corrplot(cor(train_set2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 
 
 
-2d.
+2d. defining loss function and CV generic
 ```{r}
-loss <- function(label, label_hat){
-  ls <- mean(label != label_hat)
-  return(ls)
-}
-
-CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
+CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
   
   #
   #
   #
   #
-  
-  folds <- createFolds(trainLabel, k = K)
-  error_df <- data.frame(error = rep(0, K))
+  set.seed(154)
+  num_blocks <- unique(trainFeature$blocks)
+  folds <- createFolds(num_blocks, K)
+  error_df <- matrix(0, nrow = K, ncol = 1)
   rownames(error_df) <- 1:K
   
   if(!(str_to_lower(classifier) %in% c("lda", "qda", "logistic", "randomforest", "knn", "tree"))){
     stop("classifier must be one of qda, logistics, random forest, KNN.")
   }else if(str_to_lower(classifier) == "logistic"){
     for(i in 1:K){
-      model <- glm(((trainLabel[-folds[[i]]] + 1)/2) ~ NDAI + CORR + SD, 
-                   data = trainFeature[-folds[[i]], ],
+      model <- glm(((trainLabel$label[trainLabel$blocks %notin% folds[[i]]] + 1)/2) ~ 
+                     NDAI + CORR + SD, 
+                   data = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3],
                    family = binomial(link = "logit"))
-      yhat <- predict(model, trainFeature[folds[[i]], ], type = "response")
+      yhat <- predict(model, trainFeature[trainFeature$blocks %in% folds[[i]], 1:3], type = "response")
       class <- yhat > 0.5
-      error_df[i,1] <- lossfn(as.numeric(class), ((trainLabel[folds[[i]]] + 1)/2))
+      error_df[i,1] <- lossfn(as.numeric(class), ((trainLabel$label[trainLabel$blocks %in% folds[[i]]] + 1)/2))
     }
     return(error_df)
     
   }else if(str_to_lower(classifier) == "qda"){
     for(i in 1:K){
-      model <- qda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
-      pred_qda <- predict(model, trainFeature[folds[[i]], ])$class
-      error_df[i,1] <- lossfn(pred_qda, trainLabel[folds[[i]]])
+      model <- qda(trainLabel$label[trainLabel$blocks %notin% folds[[i]]] ~ NDAI + CORR + SD,
+                   data = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3])
+      pred_qda <- predict(model, trainFeature[trainFeature$blocks %in% folds[[i]], 1:3])$class
+      error_df[i,1] <- lossfn(pred_qda, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
     
   }else if(str_to_lower(classifier) == "lda"){
     for(i in 1:K){
-      model <- lda(trainLabel[-folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[-folds[[i]], ])
-      pred_lda <- predict(model, trainFeature[folds[[i]], ])$class
-      error_df[i,1] <- lossfn(pred_lda, trainLabel[folds[[i]]])
+      model <- lda(trainLabel$label[trainLabel$blocks %notin% folds[[i]]] ~ NDAI + CORR + SD, data = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3])
+      pred_lda <- predict(model, trainFeature[trainFeature$blocks %in% folds[[i]], 1:3])$class
+      error_df[i,1] <- lossfn(pred_lda, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
     
   }else if(str_to_lower(classifier) == "knn"){
     for(i in 1:K){
-      model <- knn(train = trainFeature[-folds[[i]], ], test = trainFeature[folds[[i]], ],
-             cl = trainLabel[-folds[[i]]], k = 5)
-      error_df[i,1] <- lossfn(model, trainLabel[folds[[i]]])
+      model <- knn(train = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3], 
+                   test = trainFeature[trainFeature$blocks %in% folds[[i]], 1:3],
+      cl = trainLabel$label[trainLabel$blocks %notin% folds[[i]]], k = 50)
+      error_df[i,1] <- lossfn(model, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
     
   }else if(str_to_lower(classifier) == "tree") {
     for (i in 1:K) {
-      model <- rpart(factor(trainLabel[-folds[[i]]]) ~ NDAI + CORR + SD, 
-                     data = trainFeature[-folds[[i]], ])
-      pred_tree <- predict(model, trainFeature[folds[[i]], ], type = "class")
+      model <- rpart(factor(trainLabel$label[trainLabel$blocks %notin% folds[[i]]]) ~ NDAI + CORR + SD, 
+                     data = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3])
+      pred_tree <- predict(model, trainFeature[trainFeature$blocks %in% folds[[i]], 1:3], type = "class")
       yhat <- as.numeric(as.character(pred_tree))
-      error_df[i,1] <- lossfn(yhat, trainLabel[folds[[i]]])
+      error_df[i,1] <- lossfn(yhat, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
   }else if(str_to_lower(classifier) == "randomforest") {
     for (i in 1:K) {
-      model <- randomForest(factor(trainLabel[-folds[[i]]]) ~ NDAI + CORR + SD,
-                            data = trainFeature[-folds[[i]], ])
-      pred_rf <- predict(model, trainFeature[folds[[i]], ], type = "class")
+      model <- randomForest(factor(trainLabel$label[trainLabel$blocks %notin% folds[[i]]]) ~
+                              NDAI + CORR + SD,
+                            data = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3])
+      pred_rf <- predict(model, trainFeature[trainFeature$blocks %in% folds[[i]], 1:3],
+type = "class")
       yhat <- as.numeric(as.character(pred_rf))
-      error_df[i,1] <- lossfn(yhat, trainLabel[folds[[i]]])
+      error_df[i,1] <- lossfn(yhat, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
   }
 }
 
+```
+    
+use 9 fold cross validation on knn to determine the best k
+```{r}
+set.seed(1542019)
+num_blocks <- unique(train_val_set1$blocks)
+folds <- createFolds(num_blocks, length(num_blocks)/2)
+knn_error_df <- matrix(0, nrow = length(folds), ncol = 5)
+for(i in 1:length(folds)){
+  j <- 1
+  for (k in c(20, 30, 40, 50, 60)) {
+    model <- knn(train = train_val_set1[train_val_set1$blocks %notin% folds[[i]], 4:6], 
+                 test = train_val_set1[train_val_set1$blocks %in% folds[[i]], 4:6],
+                 cl = train_val_set1$label[train_val_set1$blocks %notin% folds[[i]]], k = k)
+    knn_error_df[i,j] <- loss(model, 
+                              train_val_set1$label[train_val_set1$blocks %in% folds[[i]]])
+    j <- j + 1
+  }
+}
+knn_error_df <- rbind(knn_error_df, colMeans(knn_error_df))
+colnames(knn_error_df) <- c(20, 30, 40, 50, 60)
+rownames(knn_error_df) <- c("cv1", "cv2", "cv3", "cv4", "average")
+knn_error_df
+```
+    
+        
+plotting to see the accuracy of knn with different k
+```{r}
+plot(c(20, 30, 40, 50, 60), 1 - knn_error_df[,5], xlab = "value of K", ylab = "cross validation accuracy")
+lines(c(20, 30, 40, 50, 60), 1 - knn_error_df[,5])
 ```
     
     
@@ -322,37 +394,45 @@ Section 3: Modeling
 # Train
 
 # Logistic
-err_logis1 <- CVgeneric("logistic", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
+err_logis1 <- CVgeneric("logistic", train_val_set1[,c(4:6, 15)], 
+                        train_val_set1[, c(3, 15)], lossfn = loss)
 err_logis1
 
 # LDA
-err_lda1 <- CVgeneric("LDA", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
+err_lda1 <- CVgeneric("LDA", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = loss)
 err_lda1
 
 # QDA
 
-err_qda1 <- CVgeneric("QDA", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
+err_qda1 <- CVgeneric("QDA", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = loss)
 err_qda1
 
+
 # KNN
-err_knn1 <- CVgeneric("KNN", train_val_set1[,4:6], train_val_set1$label, lossfn = loss)
+err_knn1 <- CVgeneric("KNN", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = loss)
 err_knn1
 
 # classification tree
-err_tree1 <- CVgeneric("tree", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
+err_tree1 <- CVgeneric("tree", train_val_set1[,c(4:6, 15)], 
+                       train_val_set1[,c(3,15)], lossfn = loss)
 err_tree1
 
 # random forest
-err_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4,5,6)], train_val_set1$label, lossfn = loss)
+err_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4:6, 15)], 
+                     train_val_set1[,c(3,15)], lossfn = loss)
 err_rf1
 
 # Summary
 error_split1 <- data.frame(logistic = err_logis1, lda = err_lda1, qda = err_qda1, KNN = err_knn1, Tree = err_tree1, rf = err_rf1)
 colnames(error_split1) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+error_split1 <- rbind(error_split1, colMeans(error_split1))
+error_split1
+```
 
-
-
-
+```{r}
 # Assumption
 ggplot(data = train1) +
   geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label))) + 
@@ -363,7 +443,7 @@ ggplot(data = train1) +
 ggplot(data = train1) +
   geom_point(aes(x = CORR, y = SD, shape = factor(label), color = factor(label))) + 
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-# How to judge assumption?
+# How to check assumption?
 ```
 
 ```{r}
@@ -406,65 +486,155 @@ for(i in 4:6){
 }
 
 ```
-
+    
+    
+    
+    
 ```{r}
 # Split data 2. 
 
-# Logistic
-err_logis2 <- CVgeneric("logistic", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+# logistic
+err_logis2 <- CVgeneric("logistic", train_val_set2[, c(4:6,13)], 
+                        train_val_set2[, c(3, 13)], lossfn = loss)
 err_logis2
 
 # LDA
-err_lda2 <- CVgeneric("LDA", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_lda2 <- CVgeneric("LDA", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = loss)
 err_lda2
 
 # QDA
-err_qda2 <- CVgeneric("QDA", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+
+err_qda2 <- CVgeneric("QDA", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = loss)
 err_qda2
 
+
 # KNN
-err_knn2 <- CVgeneric("KNN", train_val_set2[,4:6], train_val_set2$label, lossfn = loss)
+err_knn2 <- CVgeneric("KNN", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = loss)
 err_knn2
 
 # classification tree
-err_tree2 <- CVgeneric("tree", train_val_set2[,c(4,5,6)], train_val_set2$label, lossfn = loss)
+err_tree2 <- CVgeneric("tree", train_val_set2[,c(4:6, 13)], 
+                       train_val_set2[,c(3,13)], lossfn = loss)
 err_tree2
 
 # random forest
-err_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4,5,6)], train_val_set2$label, lossfn = loss)
+err_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4:6, 13)], 
+                     train_val_set2[,c(3,13)], lossfn = loss)
 err_rf2
+
 
 # Summary
 error_split2 <- data.frame(logistic = err_logis2, lda = err_lda2, qda = err_qda2, KNN = err_knn2, Tree = err_tree2, rf = err_rf2)
 colnames(error_split2) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+error_split2 <- rbind(error_split2, colMeans(error_split2))
+error_split2
+```
+    
+    
+    
+Train the model on full train_val_set and test it on testset
+```{r}
+logistic_model1 <- glm(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1,
+                      family = binomial(link = "logit"))
+yhat <- predict(logistic_model1, test_set1, type = "response")
+logistic_test_accuracy1 <- 1 - loss(as.numeric(yhat > 0.5), (as.numeric(test_set1$label)+1)/2)
+logistic_test_accuracy1
+
+lda_model1 <- lda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
+yhat <- predict(lda_model1, test_set1)$class
+lda_test_accuracy1 <- 1 - loss(yhat, test_set1$label)
+lda_test_accuracy1
+
+qda_model1 <- qda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
+yhat <- predict(qda_model1, test_set1)$class
+qda_test_accuracy1 <- 1 - loss(yhat, test_set1$label)
+qda_test_accuracy1
+
+knn_model1 <- knn(train_val_set1[,4:6], test_set1[,4:6], as.factor(train_val_set1[,3]), k = 50)
+knn_test_accuracy1 <- 1 - loss(knn_model1, test_set1[,3])
+knn_test_accuracy1
+
+tree_model1 <- rpart(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
+yhat <- as.numeric(as.character(predict(tree_model1, test_set1, type = "class")))
+tree_test_accuracy1 <- 1 - loss(as.numeric(yhat), test_set1$label)
+tree_test_accuracy1
+
+randomforest_model1 <- randomForest(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
+yhat <- as.numeric(as.character(predict(randomforest_model1, test_set1, type = "class")))
+rf_test_accuracy1 <- 1 - loss(as.numeric(yhat), test_set1$label)
+rf_test_accuracy1
+```
+  
+On the second data split
+```{r}
+logistic_model2 <- glm(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2,
+                      family = binomial(link = "logit"))
+yhat <- predict(logistic_model2, test_set2, type = "response")
+logistic_test_accuracy2 <- 1 - loss(as.numeric(yhat > 0.5), (as.numeric(test_set2$label)+1)/2)
+logistic_test_accuracy2
+
+lda_model2 <- lda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
+yhat <- predict(lda_model2, test_set2)$class
+lda_test_accuracy2 <- 1 - loss(yhat, test_set2$label)
+lda_test_accuracy2
+
+qda_model2 <- qda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
+yhat <- predict(qda_model2, test_set2)$class
+qda_test_accuracy2 <- 1 - loss(yhat, test_set2$label)
+qda_test_accuracy2
+
+knn_model2 <- knn(train_val_set2[,4:6], test_set2[,4:6], as.factor(train_val_set2[,3]), k = 40)
+knn_test_accuracy2 <- 1 - loss(knn_model2, test_set2[,3])
+knn_test_accuracy2
+
+tree_model2 <- rpart(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
+yhat <- as.numeric(as.character(predict(tree_model2, test_set2, type = "class")))
+tree_test_accuracy2 <- 1 - loss(as.numeric(yhat), test_set2$label)
+tree_test_accuracy2
+
+randomforest_model2 <- randomForest(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
+yhat <- as.numeric(as.character(predict(randomforest_model2, test_set2, type = "class")))
+rf_test_accuracy2 <- 1 - loss(as.numeric(yhat), test_set2$label)
+rf_test_accuracy2
 
 ```
-
+    
+    
 ```{r}
-agreement1 <- rbind(1 - error_split1, colMeans(1 - error_split1))
+agreement1 <- 1 - error_split1
 rownames(agreement1)[nrow(agreement1)] <- "average"
 
-agreement2 <- rbind(1 - error_split2, colMeans(1 - error_split2))
+agreement2 <- 1 - error_split2
 rownames(agreement2)[nrow(agreement2)] <- "average"
 
 agreement1
 agreement2
 ```
+    
+
+
+
+```{r}
+test_accuracy_all <- as.data.frame(rbind(c(logistic_test_accuracy1, lda_test_accuracy1, qda_test_accuracy1,
+                                           knn_test_accuracy1, tree_test_accuracy1, rf_test_accuracy1), 
+                                         c(logistic_test_accuracy2, lda_test_accuracy2, qda_test_accuracy2,
+                                           knn_test_accuracy2, tree_test_accuracy2, rf_test_accuracy2)))
+rownames(test_accuracy_all) <- c("test set 1", "test set 2")
+colnames(test_accuracy_all) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+test_accuracy_all
+```
 
 
 
 ```{r}
 
-model_helper <- randomForest(factor(label) ~ NDAI + CORR + SD, data = train_set1[1:100000,])
-pred_rf <- predict(model_helper, val_set1, type = "class")
-yhat <- as.numeric(as.character(pred_rf))
-loss(yhat, val_set1$label)
-table(pred_rf)
-table(yhat)
-table(val_set1$label)
+
+
+
 ```
-
-
 
 
 
