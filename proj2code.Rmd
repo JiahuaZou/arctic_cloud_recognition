@@ -142,6 +142,7 @@ gg3_CORR <- ggplot(data = image3) +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
+
 ```
 
     
@@ -278,7 +279,25 @@ corrplot(cor(train_set2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 
 2d. defining loss function and CV generic
 ```{r}
+# <<<<<<< HEAD
+loss <- function(label, label_hat){
+  # loss function to compute error rate.
+  ls <- mean(label != label_hat)
+  return(ls)
+}
+
+#' @title CV generic function
+#' @description aggregate classification methods including GDA, Logistic, random forest, knn and classification tree
+#' @param classifier the classification method
+#' @param trainFeature the features in train data set
+#' @param trainLabel the label in train data set
+#' @param K the parameter for k-fold CV
+#' @param lossfn the loss function defined to compute error/accuracy
+#' @return the combination of k successes can occur in n trials
+# CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
+# =======
 CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
+# >>>>>>> e65e987ad462edf6837af7b253069e149569e5a0
   
   #
   #
@@ -291,7 +310,7 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
   rownames(error_df) <- 1:K
   
   if(!(str_to_lower(classifier) %in% c("lda", "qda", "logistic", "randomforest", "knn", "tree"))){
-    stop("classifier must be one of qda, logistics, random forest, KNN.")
+    stop("classifier must be one of lda, qda, logistics, randomforest, KNN or tree.")
   }else if(str_to_lower(classifier) == "logistic"){
     for(i in 1:K){
       model <- glm(((trainLabel$label[trainLabel$blocks %notin% folds[[i]]] + 1)/2) ~ 
@@ -340,6 +359,7 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
       error_df[i,1] <- lossfn(yhat, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
+    
   }else if(str_to_lower(classifier) == "randomforest") {
     for (i in 1:K) {
       model <- randomForest(factor(trainLabel$label[trainLabel$blocks %notin% folds[[i]]]) ~
@@ -444,7 +464,7 @@ ggplot(data = train1) +
 ggplot(data = train1) +
   geom_point(aes(x = CORR, y = SD, shape = factor(label), color = factor(label))) + 
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-# How to check assumption?
+
 ```
 
 ```{r}
@@ -461,35 +481,7 @@ ggplot(data = train1) +
 #   geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
 #   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 
-# LDA & QDA, equal covariance
-covEllipses(train_set1[,4:6], factor(train_set1$label), 
-            fill = TRUE, pooled = FALSE,
-            col = c("blue", "red"), 
-            variables = 1:3,
-            fill.alpha = 0.05)
-boxM(train_set1[, 4:6], factor(train_set1$label)) # reject equal covafiance
-
-covEllipses(train_set2[,4:6], factor(train_set2$label), 
-            fill = TRUE, pooled = FALSE,
-            col = c("blue", "red"), 
-            variables = 1:3,
-            fill.alpha = 0.05)
-boxM(train_set2[, 4:6], factor(train_set2$label))
-# LDA & QDA, Gaussian
-par(mfrow = c(1,3))
-for(i in 4:6){
-  qqnorm(train_set1[which(train_set1$label == 1),i], ylab = colnames(train_set1)[i])
-  qqline(train_set1[which(train_set1$label == 1),i], col = 2)
-}
-for(i in 4:6){
-  qqnorm(train_set1[which(train_set1$label == -1),i], ylab = colnames(train_set2)[i])
-  qqline(train_set1[which(train_set1$label == -1),i], col = 2)
-}
-
 ```
-    
-    
-    
     
 ```{r}
 # Split data 2. 
@@ -530,8 +522,13 @@ err_rf2
 # Summary
 error_split2 <- data.frame(logistic = err_logis2, lda = err_lda2, qda = err_qda2, KNN = err_knn2, Tree = err_tree2, rf = err_rf2)
 colnames(error_split2) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
-error_split2 <- rbind(error_split2, colMeans(error_split2))
-error_split2
+# <<<<<<< HEAD
+# 
+# 
+# =======
+# error_split2 <- rbind(error_split2, colMeans(error_split2))
+# error_split2
+# >>>>>>> e65e987ad462edf6837af7b253069e149569e5a0
 ```
     
     
@@ -605,7 +602,52 @@ rf_test_accuracy2
     
     
 ```{r}
+# <<<<<<< HEAD
+# Assumption for data 2
+
+# LDA & QDA, equal covariance
+covEllipses(train_set1[,4:6], factor(train_set1$label), 
+            fill = TRUE, pooled = FALSE,
+            col = c("blue", "red"), 
+            variables = 1:3,
+            fill.alpha = 0.05)
+boxM(train_set1[, 4:6], factor(train_set1$label)) # reject equal covafiance
+
+covEllipses(train_set2[,4:6], factor(train_set2$label), 
+            fill = TRUE, pooled = FALSE,
+            col = c("blue", "red"), 
+            variables = 1:3,
+            fill.alpha = 0.05)
+boxM(train_set2[, 4:6], factor(train_set2$label))
+
+# LDA & QDA, Gaussian
+par(mfrow = c(1,3))
+for(i in 4:6){
+  qqnorm(train_set1[which(train_set1$label == 1),i], ylab = colnames(train_set1)[i])
+  qqline(train_set1[which(train_set1$label == 1),i], col = 2)
+}
+for(i in 4:6){
+  qqnorm(train_set1[which(train_set1$label == -1),i], ylab = colnames(train_set1)[i])
+  qqline(train_set1[which(train_set1$label == -1),i], col = 2)
+}
+
+for(i in 4:6){
+  qqnorm(train_set2[which(train_set2$label == 1),i], ylab = colnames(train_set2)[i])
+  qqline(train_set2[which(train_set2$label == 1),i], col = 2)
+}
+for(i in 4:6){
+  qqnorm(train_set2[which(train_set2$label == -1),i], ylab = colnames(train_set2)[i])
+  qqline(train_set2[which(train_set2$label == -1),i], col = 2)
+}
+par(mfrow = c(1,3))
+```
+
+
+```{r}
+agreement1 <- rbind(1 - error_split1, colMeans(1 - error_split1))
+# =======
 agreement1 <- 1 - error_split1
+# >>>>>>> e65e987ad462edf6837af7b253069e149569e5a0
 rownames(agreement1)[nrow(agreement1)] <- "average"
 
 agreement2 <- 1 - error_split2
@@ -615,8 +657,6 @@ agreement1
 agreement2
 ```
     
-
-
 
 ```{r}
 test_accuracy_all <- as.data.frame(rbind(c(logistic_test_accuracy1, lda_test_accuracy1, qda_test_accuracy1,
@@ -629,6 +669,9 @@ test_accuracy_all
 ```
 
 
+<<<<<<< HEAD
+3b. ROC
+=======
 define other metrics: precision and recall
 ```{r}
 precision <- function(yhat, y) {
@@ -821,6 +864,7 @@ recall_split1
 ```
 
 
+>>>>>>> e473a55cd188bb4cb85825252ed9a2d2d4edab94
 ```{r}
 
 # Split data 2. 
