@@ -319,7 +319,8 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
                    family = binomial(link = "logit"))
       yhat <- predict(model, trainFeature[trainFeature$blocks %in% folds[[i]], 1:3], type = "response")
       class <- yhat > 0.5
-      error_df[i,1] <- lossfn(as.numeric(class), ((trainLabel$label[trainLabel$blocks %in% folds[[i]]] + 1)/2))
+      error_df[i,1] <- lossfn(as.numeric(class),
+                              ((trainLabel$label[trainLabel$blocks %in% folds[[i]]] + 1)/2))
     }
     return(error_df)
     
@@ -668,13 +669,261 @@ test_accuracy_all
 ```
 
 
+<<<<<<< HEAD
 3b. ROC
+=======
+define other metrics: precision and recall
+```{r}
+precision <- function(yhat, y) {
+
+    yhat <- factor(yhat)
+    y <- factor(y)
+    levels(yhat) <- c("-1", "1")
+    levels(y) <- c("-1", "1")
+    data <- table(yhat, y)
+    return(caret::precision(data = data))
+}
+
+recall <- function(yhat, y) {
+    yhat <- factor(yhat)
+    y <- factor(y)
+    levels(yhat) <- c("-1", "1")
+    levels(y) <- c("-1", "1")
+    data <- table(yhat, y)
+    return(caret::recall(data = data))
+}
+```
+    
+    
+    
+    
+    
 ```{r}
 
+# Split data 1. 
+
+# Train
+
+# Logistic
+precision_logis1 <- CVgeneric("logistic", train_val_set1[,c(4:6, 15)], 
+                        train_val_set1[, c(3, 15)], lossfn = precision)
+precision_logis1
+
+# LDA
+precision_lda1 <- CVgeneric("LDA", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = precision)
+precision_lda1
+
+# QDA
+
+precision_qda1 <- CVgeneric("QDA", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = precision)
+precision_qda1
 
 
+# KNN
+precision_knn1 <- CVgeneric("KNN", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = precision)
+precision_knn1
+
+# classification tree
+precision_tree1 <- CVgeneric("tree", train_val_set1[,c(4:6, 15)], 
+                       train_val_set1[,c(3,15)], lossfn = precision)
+precision_tree1
+
+# random forest
+precision_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4:6, 15)], 
+                     train_val_set1[,c(3,15)], lossfn = precision)
+precision_rf1
+
+# Summary
+precision_split1 <- data.frame(logistic = precision_logis1, 
+                                 lda = precision_lda1, qda = precision_qda1, 
+                                 KNN = precision_knn1, Tree = precision_tree1, 
+                                 rf = precision_rf1)
+colnames(precision_split1) <- c("logistic", "LDA", "QDA", "KNN", 
+                                  "Tree", "Random Forest")
+precision_split1 <- rbind(precision_split1, colMeans(precision_split1))
+precision_split1
+```
+
+
+```{r}
+agreement1 <- 1 - precision_split1
+rownames(agreement1)[nrow(agreement1)] <- "average"
+
+agreement2 <- 1 - precision_split2
+rownames(agreement2)[nrow(agreement2)] <- "average"
+
+agreement1
+agreement2
+```
+
+
+
+```{r}
+
+# Split data 2. 
+
+# Train
+
+# Logistic
+precision_logis2 <- CVgeneric("logistic", train_val_set2[,c(4:6, 13)], 
+                        train_val_set2[, c(3, 13)], lossfn = precision)
+precision_logis2
+
+# LDA
+precision_lda2 <- CVgeneric("LDA", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = precision)
+precision_lda2
+
+# QDA
+
+precision_qda2 <- CVgeneric("QDA", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = precision)
+precision_qda2
+
+
+# KNN
+precision_knn2 <- CVgeneric("KNN", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = precision)
+precision_knn2
+
+# classification tree
+precision_tree2 <- CVgeneric("tree", train_val_set2[,c(4:6, 13)], 
+                       train_val_set2[,c(3,13)], lossfn = precision)
+precision_tree2
+
+# random forest
+precision_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4:6, 13)], 
+                     train_val_set2[,c(3,13)], lossfn = precision)
+precision_rf2
+
+# Summary
+precision_split2 <- data.frame(logistic = precision_logis2, 
+                                 lda = precision_lda2, qda = precision_qda2, 
+                                 KNN = precision_knn2, Tree = precision_tree2, 
+                                 rf = precision_rf2)
+colnames(precision_split2) <- c("logistic", "LDA", "QDA", "KNN", 
+                                  "Tree", "Random Forest")
+precision_split2 <- rbind(precision_split2, colMeans(precision_split2))
+precision_split2
 
 ```
 
 
+
+```{r}
+
+
+# Split data 1. 
+
+# Train
+
+# Logistic
+recall_logis1 <- CVgeneric("logistic", train_val_set1[,c(4:6, 15)], 
+                        train_val_set1[, c(3, 15)], lossfn = recall)
+recall_logis1
+
+# LDA
+recall_lda1 <- CVgeneric("LDA", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = recall)
+recall_lda1
+
+# QDA
+
+recall_qda1 <- CVgeneric("QDA", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = recall)
+recall_qda1
+
+
+# KNN
+recall_knn1 <- CVgeneric("KNN", train_val_set1[,c(4:6, 15)], 
+                      train_val_set1[,c(3,15)], lossfn = recall)
+recall_knn1
+
+# classification tree
+recall_tree1 <- CVgeneric("tree", train_val_set1[,c(4:6, 15)], 
+                       train_val_set1[,c(3,15)], lossfn = recall)
+recall_tree1
+
+# random forest
+recall_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4:6, 15)], 
+                     train_val_set1[,c(3,15)], lossfn = recall)
+recall_rf1
+
+# Summary
+recall_split1 <- data.frame(logistic = recall_logis1, 
+                                 lda = recall_lda1, qda = recall_qda1, 
+                                 KNN = recall_knn1, Tree = recall_tree1, 
+                                 rf = recall_rf1)
+colnames(recall_split1) <- c("logistic", "LDA", "QDA", "KNN", 
+                                  "Tree", "Random Forest")
+recall_split1 <- rbind(recall_split1, colMeans(recall_split1))
+recall_split1
+```
+
+
+>>>>>>> e473a55cd188bb4cb85825252ed9a2d2d4edab94
+```{r}
+
+# Split data 2. 
+
+# Train
+
+# Logistic
+recall_logis2 <- CVgeneric("logistic", train_val_set2[,c(4:6, 13)], 
+                        train_val_set2[, c(3, 13)], lossfn = recall)
+recall_logis2
+
+# LDA
+recall_lda2 <- CVgeneric("LDA", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = recall)
+recall_lda2
+
+# QDA
+
+recall_qda2 <- CVgeneric("QDA", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = recall)
+recall_qda2
+
+
+# KNN
+recall_knn2 <- CVgeneric("KNN", train_val_set2[,c(4:6, 13)], 
+                      train_val_set2[,c(3,13)], lossfn = recall)
+recall_knn2
+
+# classification tree
+recall_tree2 <- CVgeneric("tree", train_val_set2[,c(4:6, 13)], 
+                       train_val_set2[,c(3,13)], lossfn = recall)
+recall_tree2
+
+# random forest
+recall_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4:6, 13)], 
+                     train_val_set2[,c(3,13)], lossfn = recall)
+recall_rf2
+
+# Summary
+recall_split2 <- data.frame(logistic = recall_logis2, 
+                                 lda = recall_lda2, qda = recall_qda2, 
+                                 KNN = recall_knn2, Tree = recall_tree2, 
+                                 rf = recall_rf2)
+colnames(recall_split2) <- c("logistic", "LDA", "QDA", "KNN", 
+                                  "Tree", "Random Forest")
+recall_split2 <- rbind(recall_split2, colMeans(recall_split2))
+recall_split2
+
+```
+
+```{r}
+
+agreement1 <- 1 - recall_split1
+rownames(agreement1)[nrow(agreement1)] <- "average"
+
+agreement2 <- 1 - recall_split2
+rownames(agreement2)[nrow(agreement2)] <- "average"
+
+agreement1
+agreement2
+```
 
