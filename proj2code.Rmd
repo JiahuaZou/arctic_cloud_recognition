@@ -8,11 +8,9 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 columns <- c("y", "x", "label", "NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN")
-
 image1 <- read.table("image_data/image1.txt", header = FALSE, col.names = columns)
 image2 <- read.table("image_data/image2.txt", header = FALSE, col.names = columns)
 image3 <- read.table("image_data/image3.txt", header = FALSE, col.names = columns)
-
 image1$class <- rep(1, nrow(image1))
 image2$class <- rep(2, nrow(image2))
 image3$class <- rep(3, nrow(image3))
@@ -34,13 +32,14 @@ library(heplots)
 library(rpart)
 library(rpart.plot)
 library(randomForest)
+library(pROC)
+library(gridExtra)
 ```
   
   
 define an operator called notin, and a loss function tha calculate accuracy of classifier
 ```{r}
 '%notin%' <- Negate('%in%')
-
 loss <- function(label, label_hat){
   ls <- mean(label != label_hat)
   return(ls)
@@ -86,63 +85,61 @@ ggplot(data = image3) +
 corrplot(cor(image1[,3:11]), type="upper",tl.col="black", tl.srt=45)
 corrplot(cor(image2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 corrplot(cor(image3[,3:11]), type="upper",tl.col="black", tl.srt=45)
-
 # Boxplot, label vs NDAI/SD/CORR
-gg1_NDAI <- ggplot(data = image1) +
-  geom_boxplot(aes(x = factor(label), y = NDAI)) +
+gg1_NDAI <- ggplot() +
+  geom_boxplot(aes(x = factor(image1$label), y = image1$NDAI)) +
   xlab("Label") +
   ylab("NDAI") +
   ggtitle("label vs NDAI") +
   theme_bw()
-gg1_SD <- ggplot(data = image1) +
-  geom_boxplot(aes(x = factor(label), y = SD)) +
+gg1_SD <- ggplot() +
+  geom_boxplot(aes(x = factor(image1$label), y = image1$SD)) +
   xlab("Label") +
   ylab("SD") +
   ggtitle("label vs SD") +
   theme_bw()
-gg1_CORR <- ggplot(data = image1) +
-  geom_boxplot(aes(x = factor(label), y = CORR)) +
+gg1_CORR <- ggplot() +
+  geom_boxplot(aes(x = factor(image1$label), y = image1$CORR)) +
   xlab("Label") +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
-gg2_NDAI <- ggplot(data = image2) +
-  geom_boxplot(aes(x = factor(label), y = NDAI)) +
+gg2_NDAI <- ggplot() +
+  geom_boxplot(aes(x = factor(image2$label), y = image2$NDAI)) +
   xlab("Label") +
   ylab("NDAI") +
   ggtitle("label vs NDAI") +
   theme_bw()
-gg2_SD <- ggplot(data = image2) +
-  geom_boxplot(aes(x = factor(label), y = SD)) +
+gg2_SD <- ggplot() +
+  geom_boxplot(aes(x = factor(image2$label), y = image2$SD)) +
   xlab("Label") +
   ylab("SD") +
   ggtitle("label vs SD") +
   theme_bw()
-gg2_CORR <- ggplot(data = image2) +
-  geom_boxplot(aes(x = factor(label), y = CORR)) +
+gg2_CORR <- ggplot() +
+  geom_boxplot(aes(x = factor(image2$label), y = image2$CORR)) +
   xlab("Label") +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
-gg3_NDAI <- ggplot(data = image3) +
-  geom_boxplot(aes(x = factor(label), y = NDAI)) +
+gg3_NDAI <- ggplot() +
+  geom_boxplot(aes(x = factor(image3$label), y = image3$NDAI)) +
   xlab("Label") +
   ylab("NDAI") +
   ggtitle("label vs NDAI") +
   theme_bw()
-gg3_SD <- ggplot(data = image3) +
-  geom_boxplot(aes(x = factor(label), y = SD)) +
+gg3_SD <- ggplot() +
+  geom_boxplot(aes(x = factor(image3$label), y = image3$SD)) +
   xlab("Label") +
   ylab("SD") +
   ggtitle("label vs SD") +
   theme_bw()
-gg3_CORR <- ggplot(data = image3) +
-  geom_boxplot(aes(x = factor(label), y = CORR)) +
+gg3_CORR <- ggplot() +
+  geom_boxplot(aes(x = factor(image3$label), y = image3$CORR)) +
   xlab("Label") +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
-
 ```
 
     
@@ -151,7 +148,6 @@ Section 2: Preparation
 ```{r}
 split_data <- function(data, func = cut_interval, xs = 3, ys = 3, test_size = 0.2, 
                        val_size = 0.2, method = 1) {
-
   #
   #
   #
@@ -174,7 +170,6 @@ split_data <- function(data, func = cut_interval, xs = 3, ys = 3, test_size = 0.
   test_idx_temp <- sample(seq(1:blocks), test_size * blocks)
   test_set_temp <- data_no0[data_no0$blocks %in% test_idx_temp, ]
   train_val_set_temp <- data_no0[data_no0$blocks %notin% test_idx_temp, ]
-
   #further splitting trainset into training and validation set.
   train_val_len_temp <- length(unique(train_val_set_temp$blocks))
   val_idx_temp <- sample(seq(1:train_val_len_temp), val_size * train_val_len_temp)
@@ -193,11 +188,9 @@ helper2 <- as.data.frame(table(split_data(rbind(image1, image2, image3),
                                           xs = 2, ys = 2)[[1]]$blocks))
 helper3 <- as.data.frame(table(split_data(rbind(image1, image2, image3), 
                                           xs = 4, ys = 4)[[1]]$blocks))
-
 colnames(helper1) <- c("block", "frequency")
 colnames(helper2) <- c("block", "frequency")
 colnames(helper3) <- c("block", "frequency")
-
 helper1 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") + 
   ggtitle("9 blocks per image")
 helper2 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") + 
@@ -210,14 +203,13 @@ helper3 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") +
 2a.  splitting data by block of equal area to address spatial CORRelation
 ```{r}
 set.seed(154)
-helper1 <- split_data(image1)
-helper2 <- split_data(image2)
-helper3 <- split_data(image3)
-
-train_val_set1 <- rbind(helper1[[1]], helper2[[1]], helper3[[1]])
-train_set1 <- rbind(helper1[[2]], helper2[[2]], helper3[[2]])
-val_set1 <- rbind(helper1[[3]], helper2[[3]], helper3[[3]])
-test_set1 <- rbind(helper1[[4]], helper2[[4]], helper3[[4]])
+helper11 <- split_data(image1)
+helper12 <- split_data(image2)
+helper13 <- split_data(image3)
+train_val_set1 <- rbind(helper11[[1]], helper12[[1]], helper13[[1]])
+train_set1 <- rbind(helper11[[2]], helper12[[2]], helper13[[2]])
+val_set1 <- rbind(helper11[[3]], helper12[[3]], helper13[[3]])
+test_set1 <- rbind(helper11[[4]], helper12[[4]], helper13[[4]])
 ```
     
 2a continued. splitting data using blocks. But this time we split blocks by the equal number of observation in it. Not by the equal area as we have done previously. Use cut_number (equal observation) instead of cut_interval (equal length).   
@@ -226,7 +218,6 @@ set.seed(1542019)
 helper1 <- split_data(image1, method = 2)
 helper2 <- split_data(image2, method = 2)
 helper3 <- split_data(image3, method = 2)
-
 train_val_set2 <- rbind(helper1[[1]], helper2[[1]], helper3[[1]])
 train_set2 <- rbind(helper1[[2]], helper2[[2]], helper3[[2]])
 val_set2 <- rbind(helper1[[3]], helper2[[3]], helper3[[3]])
@@ -245,7 +236,6 @@ helper <- split_data(image1)
 helper1 <- rbind(helper[[1]], helper[[4]])
 helper <- split_data(image1, method = 2)
 helper2 <- rbind(helper[[1]], helper[[4]])
-
 helper1 %>% ggplot(aes(x = x, y = y)) + 
   geom_raster(aes(fill = factor(blocks))) +
   scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
@@ -285,7 +275,6 @@ loss <- function(label, label_hat){
   ls <- mean(label != label_hat)
   return(ls)
 }
-
 #' @title CV generic function
 #' @description aggregate classification methods including GDA, Logistic, random forest, knn and classification tree
 #' @param classifier the classification method
@@ -345,7 +334,8 @@ CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
     for(i in 1:K){
       model <- knn(train = trainFeature[trainFeature$blocks %notin% folds[[i]], 1:3], 
                    test = trainFeature[trainFeature$blocks %in% folds[[i]], 1:3],
-      cl = trainLabel$label[trainLabel$blocks %notin% folds[[i]]], k = 50)
+                   cl = trainLabel$label[trainLabel$blocks %notin% folds[[i]]],
+                   k = 50, prob = TRUE)
       error_df[i,1] <- lossfn(model, trainLabel$label[trainLabel$blocks %in% folds[[i]]])
     }
     return(error_df)
@@ -373,7 +363,6 @@ type = "class")
     return(error_df)
   }
 }
-
 ```
     
 use 9 fold cross validation on knn to determine the best k
@@ -411,46 +400,35 @@ Section 3: Modeling
 3a.
 ```{r}
 # Split data 1. 
-
 # Train
-
 # Logistic
 err_logis1 <- CVgeneric("logistic", train_val_set1[,c(4:6, 15)], 
                         train_val_set1[, c(3, 15)], lossfn = loss)
 err_logis1
-
 # LDA
 err_lda1 <- CVgeneric("LDA", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = loss)
 err_lda1
-
 # QDA
-
 err_qda1 <- CVgeneric("QDA", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = loss)
 err_qda1
-
-
 # KNN
 err_knn1 <- CVgeneric("KNN", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = loss)
 err_knn1
-
 # classification tree
 err_tree1 <- CVgeneric("tree", train_val_set1[,c(4:6, 15)], 
                        train_val_set1[,c(3,15)], lossfn = loss)
 err_tree1
-
 # random forest
 err_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4:6, 15)], 
                      train_val_set1[,c(3,15)], lossfn = loss)
 err_rf1
-
 # Summary
 error_split1 <- data.frame(logistic = err_logis1, lda = err_lda1, qda = err_qda1, KNN = err_knn1, Tree = err_tree1, rf = err_rf1)
 colnames(error_split1) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
 error_split1 <- rbind(error_split1, colMeans(error_split1))
-error_split1
 ```
 
 ```{r}
@@ -464,61 +442,34 @@ ggplot(data = train1) +
 ggplot(data = train1) +
   geom_point(aes(x = CORR, y = SD, shape = factor(label), color = factor(label))) + 
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-
 ```
 
-```{r}
-# # Assumption
-# 
-# # Plot
-# ggplot(data = train_val_set1) +
-#   geom_point(aes(x = NDAI, y = CORR, shape = factor(label), color = factor(label)), alpha = 0.5) + 
-#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-# ggplot(data = train_val_set1) +
-#   geom_point(aes(x = NDAI, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
-#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-# ggplot(data = train_val_set1) +
-#   geom_point(aes(x = CORR, y = AN, shape = factor(label), color = factor(label)), alpha = 0.5) + 
-#   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
-
-```
-    
 ```{r}
 # Split data 2. 
-
 # logistic
 err_logis2 <- CVgeneric("logistic", train_val_set2[, c(4:6,13)], 
                         train_val_set2[, c(3, 13)], lossfn = loss)
 err_logis2
-
 # LDA
 err_lda2 <- CVgeneric("LDA", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = loss)
 err_lda2
-
 # QDA
-
 err_qda2 <- CVgeneric("QDA", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = loss)
 err_qda2
-
-
 # KNN
 err_knn2 <- CVgeneric("KNN", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = loss)
 err_knn2
-
 # classification tree
 err_tree2 <- CVgeneric("tree", train_val_set2[,c(4:6, 13)], 
                        train_val_set2[,c(3,13)], lossfn = loss)
 err_tree2
-
 # random forest
 err_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4:6, 13)], 
                      train_val_set2[,c(3,13)], lossfn = loss)
 err_rf2
-
-
 # Summary
 error_split2 <- data.frame(logistic = err_logis2, lda = err_lda2, qda = err_qda2, KNN = err_knn2, Tree = err_tree2, rf = err_rf2)
 colnames(error_split2) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random Forest")
@@ -532,71 +483,72 @@ colnames(error_split2) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random For
 ```
     
     
-    
 Train the model on full train_val_set and test it on testset
 ```{r}
 logistic_model1 <- glm(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1,
                       family = binomial(link = "logit"))
-yhat <- predict(logistic_model1, test_set1, type = "response")
-logistic_test_accuracy1 <- 1 - loss(as.numeric(yhat > 0.5), (as.numeric(test_set1$label)+1)/2)
+yhat_logis1 <- predict(logistic_model1, test_set1, type = "response")
+logistic_test_accuracy1 <- 1 - loss(as.numeric(yhat_logis1 > 0.5), (as.numeric(test_set1$label)+1)/2)
 logistic_test_accuracy1
 
 lda_model1 <- lda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
-yhat <- predict(lda_model1, test_set1)$class
-lda_test_accuracy1 <- 1 - loss(yhat, test_set1$label)
+yhat_lda1 <- predict(lda_model1, test_set1)$class
+lda_test_accuracy1 <- 1 - loss(yhat_lda1, test_set1$label)
 lda_test_accuracy1
 
 qda_model1 <- qda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
-yhat <- predict(qda_model1, test_set1)$class
-qda_test_accuracy1 <- 1 - loss(yhat, test_set1$label)
+yhat_qda1 <- predict(qda_model1, test_set1)$class
+qda_test_accuracy1 <- 1 - loss(yhat_qda1, test_set1$label)
 qda_test_accuracy1
 
-knn_model1 <- knn(train_val_set1[,4:6], test_set1[,4:6], as.factor(train_val_set1[,3]), k = 50)
+knn_model1 <- knn(train_val_set1[,4:6], test_set1[,4:6], as.factor(train_val_set1[,3]), k = 50, prob = TRUE)
 knn_test_accuracy1 <- 1 - loss(knn_model1, test_set1[,3])
 knn_test_accuracy1
 
 tree_model1 <- rpart(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
-yhat <- as.numeric(as.character(predict(tree_model1, test_set1, type = "class")))
-tree_test_accuracy1 <- 1 - loss(as.numeric(yhat), test_set1$label)
+yhat_tree1 <- as.numeric(as.character(predict(tree_model1, test_set1, type = "class")))
+tree_test_accuracy1 <- 1 - loss(as.numeric(yhat_tree1), test_set1$label)
 tree_test_accuracy1
 
 randomforest_model1 <- randomForest(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set1)
-yhat <- as.numeric(as.character(predict(randomforest_model1, test_set1, type = "class")))
-rf_test_accuracy1 <- 1 - loss(as.numeric(yhat), test_set1$label)
+yhat_rf1 <- as.numeric(as.character(predict(randomforest_model1, test_set1, type = "class")))
+rf_test_accuracy1 <- 1 - loss(as.numeric(yhat_rf1), test_set1$label)
 rf_test_accuracy1
+
 ```
   
 On the second data split
 ```{r}
 logistic_model2 <- glm(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2,
                       family = binomial(link = "logit"))
-yhat <- predict(logistic_model2, test_set2, type = "response")
-logistic_test_accuracy2 <- 1 - loss(as.numeric(yhat > 0.5), (as.numeric(test_set2$label)+1)/2)
+yhat_logis2 <- predict(logistic_model2, test_set2, type = "response")
+logistic_test_accuracy2 <- 1 - loss(as.numeric(yhat_logis2 > 0.5), (as.numeric(test_set2$label)+1)/2)
 logistic_test_accuracy2
 
 lda_model2 <- lda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
-yhat <- predict(lda_model2, test_set2)$class
-lda_test_accuracy2 <- 1 - loss(yhat, test_set2$label)
+yhat_lda2 <- predict(lda_model2, test_set2)$class
+lda_test_accuracy2 <- 1 - loss(yhat_lda2, test_set2$label)
 lda_test_accuracy2
 
 qda_model2 <- qda(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
-yhat <- predict(qda_model2, test_set2)$class
-qda_test_accuracy2 <- 1 - loss(yhat, test_set2$label)
+yhat_qda2 <- predict(qda_model2, test_set2)$class
+qda_test_accuracy2 <- 1 - loss(yhat_qda2, test_set2$label)
 qda_test_accuracy2
 
-knn_model2 <- knn(train_val_set2[,4:6], test_set2[,4:6], as.factor(train_val_set2[,3]), k = 40)
+knn_model2 <- knn(train_val_set2[,4:6], test_set2[,4:6], as.factor(train_val_set2[,3]), k = 40, prob = TRUE)
 knn_test_accuracy2 <- 1 - loss(knn_model2, test_set2[,3])
 knn_test_accuracy2
 
 tree_model2 <- rpart(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
-yhat <- as.numeric(as.character(predict(tree_model2, test_set2, type = "class")))
-tree_test_accuracy2 <- 1 - loss(as.numeric(yhat), test_set2$label)
+yhat_tree2 <- as.numeric(as.character(predict(tree_model2, test_set2, type = "class")))
+tree_test_accuracy2 <- 1 - loss(as.numeric(yhat_tree2), test_set2$label)
 tree_test_accuracy2
 
 randomforest_model2 <- randomForest(as.factor(label) ~ NDAI + CORR + SD, data = train_val_set2)
-yhat <- as.numeric(as.character(predict(randomforest_model2, test_set2, type = "class")))
-rf_test_accuracy2 <- 1 - loss(as.numeric(yhat), test_set2$label)
+yhat_rf2 <- as.numeric(as.character(predict(randomforest_model2, test_set2, type = "class")))
+rf_test_accuracy2 <- 1 - loss(as.numeric(yhat_rf2), test_set2$label)
 rf_test_accuracy2
+
 
 ```
     
@@ -604,7 +556,6 @@ rf_test_accuracy2
 ```{r}
 # <<<<<<< HEAD
 # Assumption for data 2
-
 # LDA & QDA, equal covariance
 covEllipses(train_set1[,4:6], factor(train_set1$label), 
             fill = TRUE, pooled = FALSE,
@@ -612,14 +563,12 @@ covEllipses(train_set1[,4:6], factor(train_set1$label),
             variables = 1:3,
             fill.alpha = 0.05)
 boxM(train_set1[, 4:6], factor(train_set1$label)) # reject equal covafiance
-
 covEllipses(train_set2[,4:6], factor(train_set2$label), 
             fill = TRUE, pooled = FALSE,
             col = c("blue", "red"), 
             variables = 1:3,
             fill.alpha = 0.05)
 boxM(train_set2[, 4:6], factor(train_set2$label))
-
 # LDA & QDA, Gaussian
 par(mfrow = c(1,3))
 for(i in 4:6){
@@ -630,7 +579,6 @@ for(i in 4:6){
   qqnorm(train_set1[which(train_set1$label == -1),i], ylab = colnames(train_set1)[i])
   qqline(train_set1[which(train_set1$label == -1),i], col = 2)
 }
-
 for(i in 4:6){
   qqnorm(train_set2[which(train_set2$label == 1),i], ylab = colnames(train_set2)[i])
   qqline(train_set2[which(train_set2$label == 1),i], col = 2)
@@ -649,10 +597,8 @@ agreement1 <- rbind(1 - error_split1, colMeans(1 - error_split1))
 agreement1 <- 1 - error_split1
 # >>>>>>> e65e987ad462edf6837af7b253069e149569e5a0
 rownames(agreement1)[nrow(agreement1)] <- "average"
-
 agreement2 <- 1 - error_split2
 rownames(agreement2)[nrow(agreement2)] <- "average"
-
 agreement1
 agreement2
 ```
@@ -671,11 +617,107 @@ test_accuracy_all
 
 <<<<<<< HEAD
 3b. ROC
+```{r}
+# on data 1
+prob_logis1 <- predict(logistic_model1, test_set1, type = "response")
+
+prob_lda1 <- predict(lda_model1, test_set1)$posterior[,2]
+
+prob_qda1 <- predict(qda_model1, test_set1)$posterior[,2]
+
+prob_knn1 <- attributes(knn_model1)$prob
+
+prob_tree1 <- as.numeric(as.character(predict(tree_model1, test_set1, type = "prob")))[1:30227]
+
+prob_rf1 <- as.numeric(as.character(predict(randomforest_model1, test_set1, type = "prob")))[1:30227]
+
+par(mfrow = c(2,3), pty = "s")
+roc_logis1 <- roc(test_set1$label, prob_logis1, auc = TRUE)
+index_logis1 <- which.min(abs(roc_logis1$sensitivities - roc_logis1$specificities)[-1])
+plot(roc_logis1, print.thres = roc_logis1$thresholds[index_logis1], col = "red", 
+     asp = NA, legacy.axes = TRUE, main = "ROC of Logistics")
+
+roc_lda1 <- roc(test_set1$label, prob_lda1, auc = TRUE)
+index_lda1 <- which.min(abs(roc_lda1$sensitivities - roc_lda1$specificities)[-1])
+plot(roc_lda1, print.thres = roc_lda1$thresholds[index_lda1], col = "red", 
+     asp = NA, legacy.axes = TRUE, main = "ROC of LDA")
+
+roc_qda1 <- roc(test_set1$label, prob_qda1, auc = TRUE)
+index_qda1 <- which.min(abs(roc_qda1$sensitivities - roc_qda1$specificities)[-1])
+plot(roc_qda1, print.thres = roc_qda1$thresholds[index_qda1], col = "red", 
+     asp = NA, legacy.axes = TRUE, main = "ROC of QDA")
+
+roc_knn1 <- roc(test_set1$label, prob_knn1, auc = TRUE)
+# index_knn1 <- which.min(abs(roc_knn1$sensitivities - roc_knn1$specificities)[-1])
+# plot(roc_knn1, print.thres = roc_knn1$thresholds[index_knn1], col = "red", 
+#      asp = NA, legacy.axes = TRUE, main = "ROC of KNN")
+plot(roc_knn1,  legacy.axes = TRUE, asp = NA, main = "ROC of KNN")
+
+roc_tree1 <- roc(test_set1$label, prob_tree1, auc = TRUE)
+# index_tree1 <- which.min(abs(roc_tree1$sensitivities - roc_tree1$specificities)[-1])
+# plot(roc_tree1, print.thres = roc_tree1$thresholds[index_tree1], col = "red",
+#      asp = NA, legacy.axes = TRUE, main = "ROC of Tree")
+plot(roc_tree1,  legacy.axes = TRUE, asp = NA, main = "ROC of Tree")
+
+roc_rf1 <- roc(test_set1$label, prob_rf1, auc = TRUE)
+index_rf1 <- which.min(abs(roc_rf1$sensitivities - roc_rf1$specificities)[-1])
+plot(roc_rf1, print.thres = roc_rf1$thresholds[index_rf1], col = "red",
+     asp = NA, legacy.axes = TRUE, main = "ROC of RF")
+
+roc1 <- c(roc_logis1$auc, roc_lda1$auc, roc_qda1$auc, roc_knn1$auc, roc_tree1$auc, roc_rf1$auc)
+names(roc1) <- c("Logistics", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+roc1
+```
+
+
+```{r}
+# on data 2
+prob_logis2 <- predict(logistic_model2, test_set2, type = "response")
+
+prob_lda2 <- predict(lda_model2, test_set2)$posterior[,2]
+
+prob_qda2 <- predict(qda_model2, test_set2)$posterior[,2]
+
+prob_knn2 <- attributes(knn_model2)$prob
+
+prob_tree2 <- as.numeric(as.character(predict(tree_model2, test_set2, type = "prob")))[1:20983]
+
+prob_rf2 <- as.numeric(as.character(predict(randomforest_model2, test_set2, type = "prob")))[1:20983]
+
+par(mfrow = c(2,3), pty = "s")
+roc_logis2 <- roc(test_set2$label, prob_logis2, auc = TRUE)
+index_logis2 <- which.min(abs(roc_logis2$sensitivities - roc_logis2$specificities)[-1])
+plot(roc_logis2, print.thres = roc_logis2$thresholds[index_logis2], col = "red", 
+     asp = NA, legacy.axes = TRUE, main = "ROC of Logistics")
+
+roc_lda2 <- roc(test_set2$label, prob_lda2, auc = TRUE)
+plot(roc_logis2, col = "red", asp = NA, legacy.axes = TRUE, main = "ROC of LDA")
+
+roc_qda2 <- roc(test_set2$label, prob_qda2, auc = TRUE)
+plot(roc_qda2,  legacy.axes = TRUE, asp = NA, main = "ROC of QDA")
+
+roc_knn2 <- roc(test_set2$label, prob_knn2, auc = TRUE)
+plot(roc_knn2,  legacy.axes = TRUE, asp = NA, main = "ROC of KNN")
+
+roc_tree2 <- roc(test_set2$label, prob_tree2, auc = TRUE)
+plot(roc_tree2,  legacy.axes = TRUE, asp = NA, main = "ROC of Tree")
+
+roc_rf2 <- roc(test_set2$label, prob_rf2, auc = TRUE)
+plot(roc_rf2,  legacy.axes = TRUE, asp = NA, main = "ROC of Random Forest")
+
+roc2 <- c(roc_logis2$auc, roc_lda2$auc, roc_qda2$auc, roc_knn2$auc, roc_tree2$auc, roc_rf2$auc)
+names(roc2) <- c("Logistics", "LDA", "QDA", "KNN", "Tree", "Random Forest")
+roc2
+```
+
+
+
+3c.
+
 =======
 define other metrics: precision and recall
 ```{r}
 precision <- function(yhat, y) {
-
     yhat <- factor(yhat)
     y <- factor(y)
     levels(yhat) <- c("-1", "1")
@@ -683,7 +725,6 @@ precision <- function(yhat, y) {
     data <- table(yhat, y)
     return(caret::precision(data = data))
 }
-
 recall <- function(yhat, y) {
     yhat <- factor(yhat)
     y <- factor(y)
@@ -696,46 +737,33 @@ recall <- function(yhat, y) {
     
     
     
-    
-    
 ```{r}
-
 # Split data 1. 
-
 # Train
-
 # Logistic
 precision_logis1 <- CVgeneric("logistic", train_val_set1[,c(4:6, 15)], 
                         train_val_set1[, c(3, 15)], lossfn = precision)
 precision_logis1
-
 # LDA
 precision_lda1 <- CVgeneric("LDA", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = precision)
 precision_lda1
-
 # QDA
-
 precision_qda1 <- CVgeneric("QDA", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = precision)
 precision_qda1
-
-
 # KNN
 precision_knn1 <- CVgeneric("KNN", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = precision)
 precision_knn1
-
 # classification tree
 precision_tree1 <- CVgeneric("tree", train_val_set1[,c(4:6, 15)], 
                        train_val_set1[,c(3,15)], lossfn = precision)
 precision_tree1
-
 # random forest
 precision_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4:6, 15)], 
                      train_val_set1[,c(3,15)], lossfn = precision)
 precision_rf1
-
 # Summary
 precision_split1 <- data.frame(logistic = precision_logis1, 
                                  lda = precision_lda1, qda = precision_qda1, 
@@ -751,10 +779,8 @@ precision_split1
 ```{r}
 agreement1 <- 1 - precision_split1
 rownames(agreement1)[nrow(agreement1)] <- "average"
-
 agreement2 <- 1 - precision_split2
 rownames(agreement2)[nrow(agreement2)] <- "average"
-
 agreement1
 agreement2
 ```
@@ -762,43 +788,32 @@ agreement2
 
 
 ```{r}
-
 # Split data 2. 
-
 # Train
-
 # Logistic
 precision_logis2 <- CVgeneric("logistic", train_val_set2[,c(4:6, 13)], 
                         train_val_set2[, c(3, 13)], lossfn = precision)
 precision_logis2
-
 # LDA
 precision_lda2 <- CVgeneric("LDA", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = precision)
 precision_lda2
-
 # QDA
-
 precision_qda2 <- CVgeneric("QDA", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = precision)
 precision_qda2
-
-
 # KNN
 precision_knn2 <- CVgeneric("KNN", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = precision)
 precision_knn2
-
 # classification tree
 precision_tree2 <- CVgeneric("tree", train_val_set2[,c(4:6, 13)], 
                        train_val_set2[,c(3,13)], lossfn = precision)
 precision_tree2
-
 # random forest
 precision_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4:6, 13)], 
                      train_val_set2[,c(3,13)], lossfn = precision)
 precision_rf2
-
 # Summary
 precision_split2 <- data.frame(logistic = precision_logis2, 
                                  lda = precision_lda2, qda = precision_qda2, 
@@ -808,50 +823,37 @@ colnames(precision_split2) <- c("logistic", "LDA", "QDA", "KNN",
                                   "Tree", "Random Forest")
 precision_split2 <- rbind(precision_split2, colMeans(precision_split2))
 precision_split2
-
 ```
 
 
 
 ```{r}
-
-
 # Split data 1. 
-
 # Train
-
 # Logistic
 recall_logis1 <- CVgeneric("logistic", train_val_set1[,c(4:6, 15)], 
                         train_val_set1[, c(3, 15)], lossfn = recall)
 recall_logis1
-
 # LDA
 recall_lda1 <- CVgeneric("LDA", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = recall)
 recall_lda1
-
 # QDA
-
 recall_qda1 <- CVgeneric("QDA", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = recall)
 recall_qda1
-
-
 # KNN
 recall_knn1 <- CVgeneric("KNN", train_val_set1[,c(4:6, 15)], 
                       train_val_set1[,c(3,15)], lossfn = recall)
 recall_knn1
-
 # classification tree
 recall_tree1 <- CVgeneric("tree", train_val_set1[,c(4:6, 15)], 
                        train_val_set1[,c(3,15)], lossfn = recall)
 recall_tree1
-
 # random forest
 recall_rf1 <- CVgeneric("randomforest", train_val_set1[,c(4:6, 15)], 
                      train_val_set1[,c(3,15)], lossfn = recall)
 recall_rf1
-
 # Summary
 recall_split1 <- data.frame(logistic = recall_logis1, 
                                  lda = recall_lda1, qda = recall_qda1, 
@@ -865,44 +867,34 @@ recall_split1
 
 
 >>>>>>> e473a55cd188bb4cb85825252ed9a2d2d4edab94
+
 ```{r}
-
 # Split data 2. 
-
 # Train
-
 # Logistic
 recall_logis2 <- CVgeneric("logistic", train_val_set2[,c(4:6, 13)], 
                         train_val_set2[, c(3, 13)], lossfn = recall)
 recall_logis2
-
 # LDA
 recall_lda2 <- CVgeneric("LDA", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = recall)
 recall_lda2
-
 # QDA
-
 recall_qda2 <- CVgeneric("QDA", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = recall)
 recall_qda2
-
-
 # KNN
 recall_knn2 <- CVgeneric("KNN", train_val_set2[,c(4:6, 13)], 
                       train_val_set2[,c(3,13)], lossfn = recall)
 recall_knn2
-
 # classification tree
 recall_tree2 <- CVgeneric("tree", train_val_set2[,c(4:6, 13)], 
                        train_val_set2[,c(3,13)], lossfn = recall)
 recall_tree2
-
 # random forest
 recall_rf2 <- CVgeneric("randomforest", train_val_set2[,c(4:6, 13)], 
                      train_val_set2[,c(3,13)], lossfn = recall)
 recall_rf2
-
 # Summary
 recall_split2 <- data.frame(logistic = recall_logis2, 
                                  lda = recall_lda2, qda = recall_qda2, 
@@ -912,18 +904,168 @@ colnames(recall_split2) <- c("logistic", "LDA", "QDA", "KNN",
                                   "Tree", "Random Forest")
 recall_split2 <- rbind(recall_split2, colMeans(recall_split2))
 recall_split2
-
 ```
 
 ```{r}
-
 agreement1 <- 1 - recall_split1
 rownames(agreement1)[nrow(agreement1)] <- "average"
-
 agreement2 <- 1 - recall_split2
 rownames(agreement2)[nrow(agreement2)] <- "average"
-
 agreement1
 agreement2
 ```
 
+
+
+4a. 
+```{r}
+
+```
+
+
+4b.
+```{r}
+# logistic
+
+# region
+test_set1 <- rbind(helper11[[4]], helper12[[4]], helper13[[4]])
+
+yhat_logis1_i1 <- predict(logistic_model1, helper11[[4]], type = "response")
+yhat_logis1_i2 <- predict(logistic_model1, helper12[[4]], type = "response")
+yhat_logis1_i3 <- predict(logistic_model1, helper13[[4]], type = "response")
+
+yhat_logis2_i1 <- predict(logistic_model2, helper1[[4]], type = "response")
+yhat_logis2_i2 <- predict(logistic_model2, helper2[[4]], type = "response")
+yhat_logis2_i3 <- predict(logistic_model2, helper3[[4]], type = "response")
+
+1 - (length(misindex_logis1_i1) + length(misindex_logis1_i2) + length(misindex_logis1_i3))/30227
+
+misindex_logis1_i1 <- which(as.numeric(yhat_logis1_i1 > 0.5) != (as.numeric(helper11[[4]]$label)+1)/2)
+misindex_logis1_i2 <- which(as.numeric(yhat_logis1_i2 > 0.5) != (as.numeric(helper12[[4]]$label)+1)/2)
+misindex_logis1_i3 <- which(as.numeric(yhat_logis1_i3 > 0.5) != (as.numeric(helper13[[4]]$label)+1)/2)
+
+misindex_logis2_i1 <- which(as.numeric(yhat_logis2_i1 > 0.5) != (as.numeric(helper1[[4]]$label)+1)/2)
+misindex_logis2_i2 <- which(as.numeric(yhat_logis2_i2 > 0.5) != (as.numeric(helper2[[4]]$label)+1)/2)
+misindex_logis2_i3 <- which(as.numeric(yhat_logis2_i3 > 0.5) != (as.numeric(helper3[[4]]$label)+1)/2)
+
+
+ggplot() + 
+  geom_raster(aes(x = helper11[[4]]$x, y = helper11[[4]]$y)) +
+  geom_point(aes(x = helper11[[4]]$x[misindex_logis1_i1], y = helper11[[4]]$y[misindex_logis1_i1],
+                 shape = factor(helper11[[4]]$label[misindex_logis1_i1])), size= 0.6, color = "#BCBDDC") +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Split1 of Image1: Misclassification of Logistics") +
+  xlab("x") +
+  ylab("y")
+ggplot() + 
+  geom_raster(aes(x = helper12[[4]]$x, y = helper12[[4]]$y)) +
+  geom_point(aes(x = helper12[[4]]$x[misindex_logis1_i2], y = helper12[[4]]$y[misindex_logis1_i2],
+                 shape = factor(helper12[[4]]$label[misindex_logis1_i2])), size= 0.6, color = "#BCBDDC") +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Split1 of Image2: Misclassification of Logistics") +
+  xlab("x") +
+  ylab("y")
+ggplot() + 
+  geom_raster(aes(x = helper13[[4]]$x, y = helper13[[4]]$y)) +
+  geom_point(aes(x = helper13[[4]]$x[misindex_logis1_i3], y = helper13[[4]]$y[misindex_logis1_i3],
+                 shape = factor(helper13[[4]]$label[misindex_logis1_i3])), size= 0.6, color = "#BCBDDC") +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Split1 of Image3: Misclassification of Logistics") +
+  xlab("x") +
+  ylab("y")
+
+ggplot() + 
+  geom_raster(aes(x = helper1[[4]]$x, y = helper1[[4]]$y)) +
+  geom_point(aes(x = helper1[[4]]$x[misindex_logis2_i1], y = helper1[[4]]$y[misindex_logis2_i1],
+                 shape = factor(helper1[[4]]$label[misindex_logis2_i1])), size= 0.6, color = "#BCBDDC") +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Split2 of Image1: Misclassification of Logistics") +
+  xlab("x") +
+  ylab("y")
+ggplot() + 
+  geom_raster(aes(x = helper2[[4]]$x, y = helper2[[4]]$y)) +
+  geom_point(aes(x = helper2[[4]]$x[misindex_logis2_i2], y = helper2[[4]]$y[misindex_logis2_i2],
+                 shape = factor(helper2[[4]]$label[misindex_logis2_i2])), size= 0.6, color = "#BCBDDC") +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Split2 of Image2: Misclassification of Logistics") +
+  xlab("x") +
+  ylab("y")
+ggplot() + 
+  geom_raster(aes(x = helper3[[4]]$x, y = helper3[[4]]$y)) +
+  geom_point(aes(x = helper3[[4]]$x[misindex_logis2_i3], y = helper3[[4]]$y[misindex_logis2_i3],
+                 shape = factor(helper3[[4]]$label[misindex_logis2_i3])), size= 0.6, color = "#BCBDDC") +
+  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
+  ggtitle("Split2 of Image3: Misclassification of Logistics") +
+  xlab("x") +
+  ylab("y")
+
+# feature
+gg1_NDAI_mis <- gg1_NDAI + 
+  geom_point(aes(x = factor(helper11[[4]]$label[misindex_logis1_i1]), y = helper11[[4]]$NDAI[misindex_logis1_i1]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper1[[4]]$label[misindex_logis2_i1]), y = helper1[[4]]$NDAI[misindex_logis2_i1]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg1_SD_mis <- gg1_SD + 
+  geom_point(aes(x = factor(helper11[[4]]$label[misindex_logis1_i1]), y = helper11[[4]]$SD[misindex_logis1_i1]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper1[[4]]$label[misindex_logis2_i1]), y = helper1[[4]]$SD[misindex_logis2_i1]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg1_CORR_mis <- gg1_CORR + 
+  geom_point(aes(x = factor(helper11[[4]]$label[misindex_logis1_i1]), y = helper11[[4]]$CORR[misindex_logis1_i1]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper1[[4]]$label[misindex_logis2_i1]), y = helper1[[4]]$CORR[misindex_logis2_i1]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg2_NDAI_mis <- gg2_NDAI + 
+  geom_point(aes(x = factor(helper12[[4]]$label[misindex_logis1_i2]), y = helper12[[4]]$NDAI[misindex_logis1_i2]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper2[[4]]$label[misindex_logis2_i2]), y = helper2[[4]]$NDAI[misindex_logis2_i2]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg2_SD_mis <- gg2_SD + 
+  geom_point(aes(x = factor(helper12[[4]]$label[misindex_logis1_i2]), y = helper12[[4]]$SD[misindex_logis1_i2]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper2[[4]]$label[misindex_logis2_i2]), y = helper2[[4]]$SD[misindex_logis2_i2]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg2_CORR_mis <- gg2_CORR + 
+  geom_point(aes(x = factor(helper12[[4]]$label[misindex_logis1_i2]), y = helper12[[4]]$CORR[misindex_logis1_i2]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper2[[4]]$label[misindex_logis2_i2]), y = helper2[[4]]$CORR[misindex_logis2_i2]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg3_NDAI_mis <- gg3_NDAI + 
+  geom_point(aes(x = factor(helper13[[4]]$label[misindex_logis1_i3]), y = helper13[[4]]$NDAI[misindex_logis1_i3]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper3[[4]]$label[misindex_logis2_i3]), y = helper3[[4]]$NDAI[misindex_logis2_i3]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg3_SD_mis <- gg3_SD + 
+  geom_point(aes(x = factor(helper13[[4]]$label[misindex_logis1_i3]), y = helper13[[4]]$SD[misindex_logis1_i3]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper3[[4]]$label[misindex_logis2_i3]), y = helper3[[4]]$SD[misindex_logis2_i3]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg3_CORR_mis <- gg3_CORR + 
+  geom_point(aes(x = factor(helper13[[4]]$label[misindex_logis1_i3]), y = helper13[[4]]$CORR[misindex_logis1_i3]),
+             color = "red", shape = 3, alpha = 0.5) +
+  geom_point(aes(x = factor(helper3[[4]]$label[misindex_logis2_i3]), y = helper3[[4]]$CORR[misindex_logis2_i3]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+jpeg("misclass_feature.jpeg")
+grid_mis <- grid.arrange(gg1_NDAI_mis, gg1_SD_mis, gg1_CORR_mis, 
+             gg2_NDAI_mis, gg2_SD_mis, gg2_CORR_mis, 
+             gg3_NDAI_mis, gg3_SD_mis, gg3_CORR_mis, 
+             nrow = 3)
+dev.off()
+
+grid.arrange(gg1_NDAI_mis, gg1_SD_mis, gg1_CORR_mis, 
+             gg2_NDAI_mis, gg2_SD_mis, gg2_CORR_mis, 
+             gg3_NDAI_mis, gg3_SD_mis, gg3_CORR_mis, 
+             nrow = 3)
+
+```
+
+4c. better classifier
