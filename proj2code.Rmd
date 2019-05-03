@@ -48,8 +48,19 @@ loss <- function(label, label_hat){
   
     
 Section 1: Data Collection and Exploration  
-1b.  
+1b. cloud/clear plot
 ```{r}
+# percent
+perc1 <- c(table(image1$label)/nrow(image1), nrow(image1))
+perc2 <- c(table(image2$label)/nrow(image2), nrow(image2))
+perc3 <- c(table(image3$label)/nrow(image3), nrow(image3))
+perc_all <- c((table(image1$label)+table(image2$label)+table(image3$label))/(nrow(image1)+nrow(image2)+nrow(image3)),
+             (nrow(image1)+nrow(image2)+nrow(image3)))
+perc <- rbind(perc1, perc2, perc3, perc_all)
+colnames(perc) <- c("clear", "unlabeled", "cloud", "obs")
+rownames(perc) <- c("image1", "image2", "image3", "overall")
+
+# distribution plot
 ggplot(data = image1) +
   geom_point(aes(x = x, y = y, color = factor(label))) +
   scale_color_manual(values=(brewer.pal(3, "Purples"))[3:1]) +
@@ -79,67 +90,79 @@ ggplot(data = image3) +
   theme_bw()
 ```
 
-1c.
+1c. cor-plot and boxplot
 ```{r}
 # corrplot, label vs all
 corrplot(cor(image1[,3:11]), type="upper",tl.col="black", tl.srt=45)
 corrplot(cor(image2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 corrplot(cor(image3[,3:11]), type="upper",tl.col="black", tl.srt=45)
 # Boxplot, label vs NDAI/SD/CORR
+# ----delete 0
+image1_0 <- image1[which(image1$label != 0), ]
+image2_0 <- image2[which(image2$label != 0), ]
+image3_0 <- image3[which(image3$label != 0), ]
+# ----
 gg1_NDAI <- ggplot() +
-  geom_boxplot(aes(x = factor(image1$label), y = image1$NDAI)) +
+  geom_boxplot(aes(x = factor(image1_0$label), y = image1_0$NDAI), outlier.size = 0.5) +
   xlab("Label") +
   ylab("NDAI") +
   ggtitle("label vs NDAI") +
   theme_bw()
 gg1_SD <- ggplot() +
-  geom_boxplot(aes(x = factor(image1$label), y = image1$SD)) +
+  geom_boxplot(aes(x = factor(image1_0$label), y = image1_0$SD), outlier.size = 0.5) +
   xlab("Label") +
   ylab("SD") +
   ggtitle("label vs SD") +
   theme_bw()
 gg1_CORR <- ggplot() +
-  geom_boxplot(aes(x = factor(image1$label), y = image1$CORR)) +
+  geom_boxplot(aes(x = factor(image1_0$label), y = image1_0$CORR), outlier.size = 0.5) +
   xlab("Label") +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
 gg2_NDAI <- ggplot() +
-  geom_boxplot(aes(x = factor(image2$label), y = image2$NDAI)) +
+  geom_boxplot(aes(x = factor(image2_0$label), y = image2_0$NDAI), outlier.size = 0.5) +
   xlab("Label") +
   ylab("NDAI") +
   ggtitle("label vs NDAI") +
   theme_bw()
 gg2_SD <- ggplot() +
-  geom_boxplot(aes(x = factor(image2$label), y = image2$SD)) +
+  geom_boxplot(aes(x = factor(image2_0$label), y = image2_0$SD), outlier.size = 0.5) +
   xlab("Label") +
   ylab("SD") +
   ggtitle("label vs SD") +
   theme_bw()
 gg2_CORR <- ggplot() +
-  geom_boxplot(aes(x = factor(image2$label), y = image2$CORR)) +
+  geom_boxplot(aes(x = factor(image2_0$label), y = image2_0$CORR), outlier.size = 0.5) +
   xlab("Label") +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
 gg3_NDAI <- ggplot() +
-  geom_boxplot(aes(x = factor(image3$label), y = image3$NDAI)) +
+  geom_boxplot(aes(x = factor(image3_0$label), y = image3_0$NDAI), outlier.size = 0.5) +
   xlab("Label") +
   ylab("NDAI") +
   ggtitle("label vs NDAI") +
   theme_bw()
 gg3_SD <- ggplot() +
-  geom_boxplot(aes(x = factor(image3$label), y = image3$SD)) +
+  geom_boxplot(aes(x = factor(image3_0$label), y = image3_0$SD), outlier.size = 0.5) +
   xlab("Label") +
   ylab("SD") +
   ggtitle("label vs SD") +
   theme_bw()
 gg3_CORR <- ggplot() +
-  geom_boxplot(aes(x = factor(image3$label), y = image3$CORR)) +
+  geom_boxplot(aes(x = factor(image3_0$label), y = image3_0$CORR), outlier.size = 0.5) +
   xlab("Label") +
   ylab("CORR") +
   ggtitle("label vs CORR") +
   theme_bw()
+
+jpeg("feature_boxplot", quality = 100)
+grid.arrange(gg1_NDAI, gg1_SD, gg1_CORR, 
+             gg2_NDAI, gg2_SD, gg2_CORR, 
+             gg3_NDAI, gg3_SD, gg3_CORR, 
+             nrow = 3)
+dev.off()
 ```
 
     
@@ -199,7 +222,6 @@ helper3 %>% ggplot(aes(x = block, y = frequency)) + geom_bar(stat="identity") +
   ggtitle("16 blocks per image")
 ```
     
-    
 2a.  splitting data by block of equal area to address spatial CORRelation
 ```{r}
 set.seed(154)
@@ -257,7 +279,7 @@ helper[1]/sum(helper)
 ```
 
 
-2c.
+2c. pick three features
 ```{r}
 cor(train_set1[,3:11])
 cor(train_set2[,3:11])
@@ -266,15 +288,14 @@ corrplot(cor(train_set2[,3:11]), type="upper",tl.col="black", tl.srt=45)
 ```
 
 
-
 2d. defining loss function and CV generic
 ```{r}
-# <<<<<<< HEAD
 loss <- function(label, label_hat){
   # loss function to compute error rate.
   ls <- mean(label != label_hat)
   return(ls)
 }
+
 #' @title CV generic function
 #' @description aggregate classification methods including GDA, Logistic, random forest, knn and classification tree
 #' @param classifier the classification method
@@ -283,15 +304,8 @@ loss <- function(label, label_hat){
 #' @param K the parameter for k-fold CV
 #' @param lossfn the loss function defined to compute error/accuracy
 #' @return the combination of k successes can occur in n trials
-# CVgeneric <- function(classifier, trainFeature, trainLabel, K = 5, lossfn){
-# =======
 CVgeneric <- function(classifier, trainFeature, trainLabel, K = 8, lossfn){
-# >>>>>>> e65e987ad462edf6837af7b253069e149569e5a0
-  
-  #
-  #
-  #
-  #
+
   set.seed(154)
   num_blocks <- unique(trainFeature$blocks)
   folds <- createFolds(num_blocks, K)
@@ -398,6 +412,7 @@ lines(c(20, 30, 40, 50, 60), 1 - knn_error_df[,5])
     
 Section 3: Modeling   
 3a.
+using data 1
 ```{r}
 # Split data 1. 
 # Train
@@ -431,6 +446,7 @@ colnames(error_split1) <- c("logistic", "LDA", "QDA", "KNN", "Tree", "Random For
 error_split1 <- rbind(error_split1, colMeans(error_split1))
 ```
 
+distribution
 ```{r}
 # Assumption
 ggplot(data = train1) +
@@ -444,6 +460,7 @@ ggplot(data = train1) +
   scale_color_manual(values=c("#66c2a5", "#fc8d62"))
 ```
 
+data 2
 ```{r}
 # Split data 2. 
 # logistic
@@ -514,7 +531,6 @@ randomforest_model1 <- randomForest(as.factor(label) ~ NDAI + CORR + SD, data = 
 yhat_rf1 <- as.numeric(as.character(predict(randomforest_model1, test_set1, type = "class")))
 rf_test_accuracy1 <- 1 - loss(as.numeric(yhat_rf1), test_set1$label)
 rf_test_accuracy1
-
 ```
   
 On the second data split
@@ -552,7 +568,7 @@ rf_test_accuracy2
 
 ```
     
-    
+LDA QDA assumption
 ```{r}
 # <<<<<<< HEAD
 # Assumption for data 2
@@ -615,8 +631,8 @@ test_accuracy_all
 ```
 
 
-<<<<<<< HEAD
 3b. ROC
+ROC on data 1
 ```{r}
 # on data 1
 prob_logis1 <- predict(logistic_model1, test_set1, type = "response")
@@ -648,16 +664,13 @@ plot(roc_qda1, print.thres = roc_qda1$thresholds[index_qda1], col = "red",
      asp = NA, legacy.axes = TRUE, main = "ROC of QDA")
 
 roc_knn1 <- roc(test_set1$label, prob_knn1, auc = TRUE)
-# index_knn1 <- which.min(abs(roc_knn1$sensitivities - roc_knn1$specificities)[-1])
-# plot(roc_knn1, print.thres = roc_knn1$thresholds[index_knn1], col = "red", 
-#      asp = NA, legacy.axes = TRUE, main = "ROC of KNN")
-plot(roc_knn1,  legacy.axes = TRUE, asp = NA, main = "ROC of KNN")
+plot(roc_knn1, print.thres = roc_knn1$thresholds[2], col = "red",
+     asp = NA, legacy.axes = TRUE, main = "ROC of KNN")
 
 roc_tree1 <- roc(test_set1$label, prob_tree1, auc = TRUE)
-# index_tree1 <- which.min(abs(roc_tree1$sensitivities - roc_tree1$specificities)[-1])
-# plot(roc_tree1, print.thres = roc_tree1$thresholds[index_tree1], col = "red",
-#      asp = NA, legacy.axes = TRUE, main = "ROC of Tree")
-plot(roc_tree1,  legacy.axes = TRUE, asp = NA, main = "ROC of Tree")
+plot(roc_tree1, print.thres = roc_tree1$thresholds[2], col = "red",
+     asp = NA, legacy.axes = TRUE, main = "ROC of Tree")
+
 
 roc_rf1 <- roc(test_set1$label, prob_rf1, auc = TRUE)
 index_rf1 <- which.min(abs(roc_rf1$sensitivities - roc_rf1$specificities)[-1])
@@ -669,7 +682,7 @@ names(roc1) <- c("Logistics", "LDA", "QDA", "KNN", "Tree", "Random Forest")
 roc1
 ```
 
-
+ROC on data 2
 ```{r}
 # on data 2
 prob_logis2 <- predict(logistic_model2, test_set2, type = "response")
@@ -691,30 +704,38 @@ plot(roc_logis2, print.thres = roc_logis2$thresholds[index_logis2], col = "red",
      asp = NA, legacy.axes = TRUE, main = "ROC of Logistics")
 
 roc_lda2 <- roc(test_set2$label, prob_lda2, auc = TRUE)
-plot(roc_logis2, col = "red", asp = NA, legacy.axes = TRUE, main = "ROC of LDA")
+index_lda2 <- which.min(abs(roc_lda2$sensitivities - roc_lda2$specificities)[-1])
+plot(roc_lda2, print.thres = roc_lda2$thresholds[index_lda2], col = "red", 
+     asp = NA, legacy.axes = TRUE, main = "ROC of LDA")
 
 roc_qda2 <- roc(test_set2$label, prob_qda2, auc = TRUE)
-plot(roc_qda2,  legacy.axes = TRUE, asp = NA, main = "ROC of QDA")
+index_qda2 <- which.min(abs(roc_qda2$sensitivities - roc_qda2$specificities)[-1])
+plot(roc_qda2, print.thres = roc_qda2$thresholds[index_qda2], col = "red", 
+     asp = NA, legacy.axes = TRUE, main = "ROC of QDA")
 
 roc_knn2 <- roc(test_set2$label, prob_knn2, auc = TRUE)
-plot(roc_knn2,  legacy.axes = TRUE, asp = NA, main = "ROC of KNN")
+plot(roc_knn2, print.thres = roc_knn2$thresholds[2], col = "red",
+     asp = NA, legacy.axes = TRUE, main = "ROC of KNN")
 
 roc_tree2 <- roc(test_set2$label, prob_tree2, auc = TRUE)
-plot(roc_tree2,  legacy.axes = TRUE, asp = NA, main = "ROC of Tree")
+plot(roc_tree2, print.thres = roc_tree2$thresholds[2], col = "red",
+     asp = NA, legacy.axes = TRUE, main = "ROC of Tree")
 
 roc_rf2 <- roc(test_set2$label, prob_rf2, auc = TRUE)
-plot(roc_rf2,  legacy.axes = TRUE, asp = NA, main = "ROC of Random Forest")
+index_rf2 <- which.min(abs(roc_rf2$sensitivities - roc_rf2$specificities)[-1])
+plot(roc_rf2, print.thres = roc_rf2$thresholds[index_rf2], col = "red",
+     asp = NA, legacy.axes = TRUE, main = "ROC of RF")
 
 roc2 <- c(roc_logis2$auc, roc_lda2$auc, roc_qda2$auc, roc_knn2$auc, roc_tree2$auc, roc_rf2$auc)
 names(roc2) <- c("Logistics", "LDA", "QDA", "KNN", "Tree", "Random Forest")
 roc2
+
+rbind(roc1, roc2)
 ```
 
 
 
 3c.
-
-=======
 define other metrics: precision and recall
 ```{r}
 precision <- function(yhat, y) {
@@ -734,7 +755,6 @@ recall <- function(yhat, y) {
     return(caret::recall(data = data))
 }
 ```
-    
     
     
 ```{r}
@@ -865,9 +885,6 @@ recall_split1 <- rbind(recall_split1, colMeans(recall_split1))
 recall_split1
 ```
 
-
->>>>>>> e473a55cd188bb4cb85825252ed9a2d2d4edab94
-
 ```{r}
 # Split data 2. 
 # Train
@@ -917,144 +934,139 @@ agreement2
 
 
 
-4a. 
+4b.
+
+misclassification region pattern RF
 ```{r}
+yhat_rf1_i1 <- predict(randomforest_model1, helper11[[4]], type = "response")
+yhat_rf1_i2 <- predict(randomforest_model1, helper12[[4]], type = "response")
+yhat_rf1_i3 <- predict(randomforest_model1, helper13[[4]], type = "response")
+
+yhat_rf2_i1 <- predict(randomforest_model2, helper1[[4]], type = "response")
+yhat_rf2_i2 <- predict(randomforest_model2, helper2[[4]], type = "response")
+yhat_rf2_i3 <- predict(randomforest_model2, helper3[[4]], type = "response")
+
+
+misindex_rf1_i1 <- which(yhat_rf1_i1 != helper11[[4]]$label)
+misindex_rf1_i2 <- which(yhat_rf1_i2 != helper12[[4]]$label)
+misindex_rf1_i3 <- which(yhat_rf1_i3 != helper13[[4]]$label)
+
+misindex_rf2_i1 <- which(yhat_rf2_i1 != helper1[[4]]$label)
+misindex_rf2_i2 <- which(yhat_rf2_i2 != helper2[[4]]$label)
+misindex_rf2_i3 <- which(yhat_rf2_i3 != helper3[[4]]$label)
+
+
+g1 <- ggplot() + 
+  geom_raster(aes(x = helper11[[4]]$x, y = helper11[[4]]$y)) +
+  geom_point(aes(x = helper11[[4]]$x[misindex_rf1_i1], y = helper11[[4]]$y[misindex_rf1_i1],
+                 shape = factor(helper11[[4]]$label[misindex_rf1_i1]),
+                 color = factor(helper11[[4]]$label[misindex_rf1_i1])),
+             size= 0.8, show.legend = F) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  theme_bw() + 
+  ggtitle("Image1:Misclassification") +
+  xlab("x") +
+  ylab("y")
+g2 <- ggplot() + 
+  geom_raster(aes(x = helper12[[4]]$x, y = helper12[[4]]$y)) +
+  geom_point(aes(x = helper12[[4]]$x[misindex_rf1_i2], y = helper12[[4]]$y[misindex_rf1_i2],
+                 shape = factor(helper12[[4]]$label[misindex_rf1_i2]),
+                 color = factor(helper12[[4]]$label[misindex_rf1_i2])),
+             size= 0.8, show.legend = F) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  theme_bw() + 
+  ggtitle("Image2:Misclassification") +
+  xlab("x") +
+  ylab("y")
+g3 <- ggplot() + 
+  geom_raster(aes(x = helper13[[4]]$x, y = helper13[[4]]$y)) +
+  geom_point(aes(x = helper13[[4]]$x[misindex_rf1_i3], y = helper13[[4]]$y[misindex_rf1_i3],
+                 shape = factor(helper13[[4]]$label[misindex_rf1_i3]),
+                 color = factor(helper13[[4]]$label[misindex_rf1_i3])),
+             size= 0.8, show.legend = F) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  theme_bw() + 
+  ggtitle("Image3:Misclassification") +
+  xlab("x") +
+  ylab("y")
+
+g4 <- ggplot() + 
+  geom_raster(aes(x = helper1[[4]]$x, y = helper1[[4]]$y)) +
+  geom_point(aes(x = helper1[[4]]$x[misindex_rf2_i1], y = helper1[[4]]$y[misindex_rf2_i1],
+                 shape = factor(helper1[[4]]$label[misindex_rf2_i1]),
+                 color = factor(helper1[[4]]$label[misindex_rf2_i1])),
+             size= 0.8, show.legend = F) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  theme_bw() + 
+  ggtitle("Image1:Misclassification") +
+  xlab("x") +
+  ylab("y")
+g5 <- ggplot() + 
+  geom_raster(aes(x = helper2[[4]]$x, y = helper2[[4]]$y)) +
+  geom_point(aes(x = helper2[[4]]$x[misindex_rf2_i2], y = helper2[[4]]$y[misindex_rf2_i2],
+                 shape = factor(helper2[[4]]$label[misindex_rf2_i2]),
+                 color = factor(helper2[[4]]$label[misindex_rf2_i2])),
+             size= 0.8, show.legend = F) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  theme_bw() + 
+  ggtitle("Image2:Misclassification") +
+  xlab("x") +
+  ylab("y")
+g6 <- ggplot() + 
+  geom_raster(aes(x = helper3[[4]]$x, y = helper3[[4]]$y)) +
+  geom_point(aes(x = helper3[[4]]$x[misindex_rf2_i3], y = helper3[[4]]$y[misindex_rf2_i3],
+                 shape = factor(helper3[[4]]$label[misindex_rf2_i3]),
+                 color = factor(helper3[[4]]$label[misindex_rf2_i3])),
+             size= 0.8, show.legend = F) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  theme_bw() + 
+  ggtitle("Image3:Misclassification") +
+  xlab("x") +
+  ylab("y")
+jpeg("misclassification region.jpeg", quality = 100, width = 800, height = 600)
+grid.arrange(g1, g2, g3, g4, g5, g6, nrow = 2)
+dev.off()
 
 ```
 
-
-4b.
+misclassification feature pattern RF
+data 1
 ```{r}
-# logistic
-
-# region
-test_set1 <- rbind(helper11[[4]], helper12[[4]], helper13[[4]])
-
-yhat_logis1_i1 <- predict(logistic_model1, helper11[[4]], type = "response")
-yhat_logis1_i2 <- predict(logistic_model1, helper12[[4]], type = "response")
-yhat_logis1_i3 <- predict(logistic_model1, helper13[[4]], type = "response")
-
-yhat_logis2_i1 <- predict(logistic_model2, helper1[[4]], type = "response")
-yhat_logis2_i2 <- predict(logistic_model2, helper2[[4]], type = "response")
-yhat_logis2_i3 <- predict(logistic_model2, helper3[[4]], type = "response")
-
-1 - (length(misindex_logis1_i1) + length(misindex_logis1_i2) + length(misindex_logis1_i3))/30227
-
-misindex_logis1_i1 <- which(as.numeric(yhat_logis1_i1 > 0.5) != (as.numeric(helper11[[4]]$label)+1)/2)
-misindex_logis1_i2 <- which(as.numeric(yhat_logis1_i2 > 0.5) != (as.numeric(helper12[[4]]$label)+1)/2)
-misindex_logis1_i3 <- which(as.numeric(yhat_logis1_i3 > 0.5) != (as.numeric(helper13[[4]]$label)+1)/2)
-
-misindex_logis2_i1 <- which(as.numeric(yhat_logis2_i1 > 0.5) != (as.numeric(helper1[[4]]$label)+1)/2)
-misindex_logis2_i2 <- which(as.numeric(yhat_logis2_i2 > 0.5) != (as.numeric(helper2[[4]]$label)+1)/2)
-misindex_logis2_i3 <- which(as.numeric(yhat_logis2_i3 > 0.5) != (as.numeric(helper3[[4]]$label)+1)/2)
-
-
-ggplot() + 
-  geom_raster(aes(x = helper11[[4]]$x, y = helper11[[4]]$y)) +
-  geom_point(aes(x = helper11[[4]]$x[misindex_logis1_i1], y = helper11[[4]]$y[misindex_logis1_i1],
-                 shape = factor(helper11[[4]]$label[misindex_logis1_i1])), size= 0.6, color = "#BCBDDC") +
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
-  ggtitle("Split1 of Image1: Misclassification of Logistics") +
-  xlab("x") +
-  ylab("y")
-ggplot() + 
-  geom_raster(aes(x = helper12[[4]]$x, y = helper12[[4]]$y)) +
-  geom_point(aes(x = helper12[[4]]$x[misindex_logis1_i2], y = helper12[[4]]$y[misindex_logis1_i2],
-                 shape = factor(helper12[[4]]$label[misindex_logis1_i2])), size= 0.6, color = "#BCBDDC") +
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
-  ggtitle("Split1 of Image2: Misclassification of Logistics") +
-  xlab("x") +
-  ylab("y")
-ggplot() + 
-  geom_raster(aes(x = helper13[[4]]$x, y = helper13[[4]]$y)) +
-  geom_point(aes(x = helper13[[4]]$x[misindex_logis1_i3], y = helper13[[4]]$y[misindex_logis1_i3],
-                 shape = factor(helper13[[4]]$label[misindex_logis1_i3])), size= 0.6, color = "#BCBDDC") +
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
-  ggtitle("Split1 of Image3: Misclassification of Logistics") +
-  xlab("x") +
-  ylab("y")
-
-ggplot() + 
-  geom_raster(aes(x = helper1[[4]]$x, y = helper1[[4]]$y)) +
-  geom_point(aes(x = helper1[[4]]$x[misindex_logis2_i1], y = helper1[[4]]$y[misindex_logis2_i1],
-                 shape = factor(helper1[[4]]$label[misindex_logis2_i1])), size= 0.6, color = "#BCBDDC") +
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
-  ggtitle("Split2 of Image1: Misclassification of Logistics") +
-  xlab("x") +
-  ylab("y")
-ggplot() + 
-  geom_raster(aes(x = helper2[[4]]$x, y = helper2[[4]]$y)) +
-  geom_point(aes(x = helper2[[4]]$x[misindex_logis2_i2], y = helper2[[4]]$y[misindex_logis2_i2],
-                 shape = factor(helper2[[4]]$label[misindex_logis2_i2])), size= 0.6, color = "#BCBDDC") +
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
-  ggtitle("Split2 of Image2: Misclassification of Logistics") +
-  xlab("x") +
-  ylab("y")
-ggplot() + 
-  geom_raster(aes(x = helper3[[4]]$x, y = helper3[[4]]$y)) +
-  geom_point(aes(x = helper3[[4]]$x[misindex_logis2_i3], y = helper3[[4]]$y[misindex_logis2_i3],
-                 shape = factor(helper3[[4]]$label[misindex_logis2_i3])), size= 0.6, color = "#BCBDDC") +
-  scale_color_manual(values=(brewer.pal(9, "Purples"))) + theme_bw() + 
-  ggtitle("Split2 of Image3: Misclassification of Logistics") +
-  xlab("x") +
-  ylab("y")
-
-# feature
 gg1_NDAI_mis <- gg1_NDAI + 
-  geom_point(aes(x = factor(helper11[[4]]$label[misindex_logis1_i1]), y = helper11[[4]]$NDAI[misindex_logis1_i1]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper1[[4]]$label[misindex_logis2_i1]), y = helper1[[4]]$NDAI[misindex_logis2_i1]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper11[[4]]$label[misindex_rf1_i1]), y = helper11[[4]]$NDAI[misindex_rf1_i1]),
+             color = "red", shape = 4, alpha = 0.5) 
 
 gg1_SD_mis <- gg1_SD + 
-  geom_point(aes(x = factor(helper11[[4]]$label[misindex_logis1_i1]), y = helper11[[4]]$SD[misindex_logis1_i1]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper1[[4]]$label[misindex_logis2_i1]), y = helper1[[4]]$SD[misindex_logis2_i1]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper11[[4]]$label[misindex_rf1_i1]), y = helper11[[4]]$SD[misindex_rf1_i1]),
+             color = "red", shape = 4, alpha = 0.5) 
 
 gg1_CORR_mis <- gg1_CORR + 
-  geom_point(aes(x = factor(helper11[[4]]$label[misindex_logis1_i1]), y = helper11[[4]]$CORR[misindex_logis1_i1]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper1[[4]]$label[misindex_logis2_i1]), y = helper1[[4]]$CORR[misindex_logis2_i1]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper11[[4]]$label[misindex_rf1_i1]), y = helper11[[4]]$CORR[misindex_rf1_i1]),
+             color = "red", shape = 4, alpha = 0.5) 
 
 gg2_NDAI_mis <- gg2_NDAI + 
-  geom_point(aes(x = factor(helper12[[4]]$label[misindex_logis1_i2]), y = helper12[[4]]$NDAI[misindex_logis1_i2]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper2[[4]]$label[misindex_logis2_i2]), y = helper2[[4]]$NDAI[misindex_logis2_i2]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper12[[4]]$label[misindex_rf1_i2]), y = helper12[[4]]$NDAI[misindex_rf1_i2]),
+             color = "red", shape = 4, alpha = 0.5) 
 
 gg2_SD_mis <- gg2_SD + 
-  geom_point(aes(x = factor(helper12[[4]]$label[misindex_logis1_i2]), y = helper12[[4]]$SD[misindex_logis1_i2]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper2[[4]]$label[misindex_logis2_i2]), y = helper2[[4]]$SD[misindex_logis2_i2]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper12[[4]]$label[misindex_rf1_i2]), y = helper12[[4]]$SD[misindex_rf1_i2]),
+             color = "red", shape = 4, alpha = 0.5) 
 
 gg2_CORR_mis <- gg2_CORR + 
-  geom_point(aes(x = factor(helper12[[4]]$label[misindex_logis1_i2]), y = helper12[[4]]$CORR[misindex_logis1_i2]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper2[[4]]$label[misindex_logis2_i2]), y = helper2[[4]]$CORR[misindex_logis2_i2]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper12[[4]]$label[misindex_rf1_i2]), y = helper12[[4]]$CORR[misindex_rf1_i2]),
+             color = "red", shape = 4, alpha = 0.5) 
 
 gg3_NDAI_mis <- gg3_NDAI + 
-  geom_point(aes(x = factor(helper13[[4]]$label[misindex_logis1_i3]), y = helper13[[4]]$NDAI[misindex_logis1_i3]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper3[[4]]$label[misindex_logis2_i3]), y = helper3[[4]]$NDAI[misindex_logis2_i3]),
-             color = "blue", shape = 4, alpha = 0.7)
-
+  geom_point(aes(x = factor(helper13[[4]]$label[misindex_rf1_i3]), y = helper13[[4]]$NDAI[misindex_rf1_i3]),
+             color = "red", shape = 4, alpha = 0.5) 
 gg3_SD_mis <- gg3_SD + 
-  geom_point(aes(x = factor(helper13[[4]]$label[misindex_logis1_i3]), y = helper13[[4]]$SD[misindex_logis1_i3]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper3[[4]]$label[misindex_logis2_i3]), y = helper3[[4]]$SD[misindex_logis2_i3]),
-             color = "blue", shape = 4, alpha = 0.7)
-
+  geom_point(aes(x = factor(helper13[[4]]$label[misindex_rf1_i3]), y = helper13[[4]]$SD[misindex_rf1_i3]),
+             color = "red", shape = 4, alpha = 0.5) 
 gg3_CORR_mis <- gg3_CORR + 
-  geom_point(aes(x = factor(helper13[[4]]$label[misindex_logis1_i3]), y = helper13[[4]]$CORR[misindex_logis1_i3]),
-             color = "red", shape = 3, alpha = 0.5) +
-  geom_point(aes(x = factor(helper3[[4]]$label[misindex_logis2_i3]), y = helper3[[4]]$CORR[misindex_logis2_i3]),
-             color = "blue", shape = 4, alpha = 0.7)
+  geom_point(aes(x = factor(helper13[[4]]$label[misindex_rf1_i3]), y = helper13[[4]]$CORR[misindex_rf1_i3]),
+             color = "red", shape = 4, alpha = 0.5) 
 
-jpeg("misclass_feature.jpeg")
+jpeg("misclass_feature.jpeg", quality = 100)
 grid_mis <- grid.arrange(gg1_NDAI_mis, gg1_SD_mis, gg1_CORR_mis, 
              gg2_NDAI_mis, gg2_SD_mis, gg2_CORR_mis, 
              gg3_NDAI_mis, gg3_SD_mis, gg3_CORR_mis, 
@@ -1065,7 +1077,57 @@ grid.arrange(gg1_NDAI_mis, gg1_SD_mis, gg1_CORR_mis,
              gg2_NDAI_mis, gg2_SD_mis, gg2_CORR_mis, 
              gg3_NDAI_mis, gg3_SD_mis, gg3_CORR_mis, 
              nrow = 3)
-
 ```
+data 2
+```{r}
+gg1_NDAI_mis2 <- gg1_NDAI + 
+  geom_point(aes(x = factor(helper1[[4]]$label[misindex_rf2_i1]), y = helper1[[4]]$NDAI[misindex_rf2_i1]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg1_SD_mis2 <- gg1_SD + 
+  geom_point(aes(x = factor(helper1[[4]]$label[misindex_rf2_i1]), y = helper1[[4]]$SD[misindex_rf2_i1]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg1_CORR_mis2 <- gg1_CORR + 
+  geom_point(aes(x = factor(helper1[[4]]$label[misindex_rf2_i1]), y = helper1[[4]]$CORR[misindex_rf2_i1]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg2_NDAI_mis2 <- gg2_NDAI + 
+  geom_point(aes(x = factor(helper2[[4]]$label[misindex_rf2_i2]), y = helper2[[4]]$NDAI[misindex_rf2_i2]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg2_SD_mis2 <- gg2_SD + 
+  geom_point(aes(x = factor(helper2[[4]]$label[misindex_rf2_i2]), y = helper2[[4]]$SD[misindex_rf2_i2]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg2_CORR_mis2 <- gg2_CORR + 
+  geom_point(aes(x = factor(helper2[[4]]$label[misindex_rf2_i2]), y = helper2[[4]]$CORR[misindex_rf2_i2]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg3_NDAI_mis2 <- gg3_NDAI + 
+  geom_point(aes(x = factor(helper3[[4]]$label[misindex_rf2_i3]), y = helper3[[4]]$NDAI[misindex_rf2_i3]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg3_SD_mis2 <- gg3_SD + 
+  geom_point(aes(x = factor(helper3[[4]]$label[misindex_rf2_i3]), y = helper3[[4]]$SD[misindex_rf2_i3]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+gg3_CORR_mis2 <- gg3_CORR + 
+  geom_point(aes(x = factor(helper3[[4]]$label[misindex_rf2_i3]), y = helper3[[4]]$CORR[misindex_rf2_i3]),
+             color = "blue", shape = 4, alpha = 0.7)
+
+jpeg("misclass_feature2.jpeg", quality = 100)
+grid_mis2 <- grid.arrange(gg1_NDAI_mis2, gg1_SD_mis2, gg1_CORR_mis2, 
+             gg2_NDAI_mis2, gg2_SD_mis2, gg2_CORR_mis2, 
+             gg3_NDAI_mis2, gg3_SD_mis2, gg3_CORR_mis2, 
+             nrow = 3)
+dev.off()
+
+grid.arrange(gg1_NDAI_mis2, gg1_SD_mis2, gg1_CORR_mis2, 
+             gg2_NDAI_mis2, gg2_SD_mis2, gg2_CORR_mis2, 
+             gg3_NDAI_mis2, gg3_SD_mis2, gg3_CORR_mis2, 
+             nrow = 3)
+```
+
 
 4c. better classifier
